@@ -14,10 +14,6 @@ module Killbill #:nodoc:
               }.merge!(extra_params),
               ::Killbill::Cybersource::CybersourcePaymentMethod)
       end
-
-      def external_payment_method_id
-        token
-      end
     end
   end
 end

@@ -14,7 +14,7 @@ describe Killbill::Cybersource::PaymentPlugin do
     @plugin.kb_apis = Killbill::Plugin::KillbillApi.new('cybersource', svcs)
 
     @plugin.logger       = Logger.new(STDOUT)
-    @plugin.logger.level = Logger::DEBUG
+    @plugin.logger.level = Logger::INFO
     @plugin.conf_dir     = File.expand_path(File.dirname(__FILE__) + '../../../../')
     @plugin.start_plugin
   end
