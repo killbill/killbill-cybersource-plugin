@@ -6,9 +6,13 @@ module Killbill #:nodoc:
 
       has_one :cybersource_transaction
 
-      def self.from_response(api_call, kb_payment_id, response, extra_params = {})
+      def self.from_response(api_call, kb_account_id, kb_payment_id, kb_payment_transaction_id, transaction_type, kb_tenant_id, response, extra_params = {})
         super(api_call,
+              kb_account_id,
               kb_payment_id,
+              kb_payment_transaction_id,
+              transaction_type,
+              kb_tenant_id,
               response,
               {
                   :params_merchant_reference_code => extract(response, 'merchantReferenceCode'),

@@ -2,7 +2,6 @@ require 'active_record'
 
 ActiveRecord::Schema.define(:version => 20140410153635) do
   create_table "cybersource_payment_methods", :force => true do |t|
-    t.string   "kb_account_id",            :null => false
     t.string   "kb_payment_method_id"      # NULL before Kill Bill knows about it
     t.string   "token"                     # cybersource id
     t.string   "cc_first_name"
@@ -26,6 +25,8 @@ ActiveRecord::Schema.define(:version => 20140410153635) do
     t.boolean  "is_deleted",               :null => false, :default => false
     t.datetime "created_at",               :null => false
     t.datetime "updated_at",               :null => false
+    t.string   "kb_account_id"
+    t.string   "kb_tenant_id"
   end
 
   add_index(:cybersource_payment_methods, :kb_account_id)
@@ -35,11 +36,15 @@ ActiveRecord::Schema.define(:version => 20140410153635) do
     t.integer  "cybersource_response_id",  :null => false
     t.string   "api_call",                       :null => false
     t.string   "kb_payment_id",                  :null => false
+    t.string   "kb_payment_transaction_id",      :null => false
+    t.string   "transaction_type",               :null => false
     t.string   "txn_id"                          # cybersource transaction id
     t.integer  "amount_in_cents",                :null => false
     t.string   "currency",                       :null => false
     t.datetime "created_at",                     :null => false
     t.datetime "updated_at",                     :null => false
+    t.string   "kb_account_id",                  :null => false
+    t.string   "kb_tenant_id",                   :null => false
   end
 
   add_index(:cybersource_transactions, :kb_payment_id)
@@ -47,6 +52,8 @@ ActiveRecord::Schema.define(:version => 20140410153635) do
   create_table "cybersource_responses", :force => true do |t|
     t.string   "api_call",          :null => false
     t.string   "kb_payment_id"
+    t.string   "kb_payment_transaction_id"
+    t.string   "transaction_type"
     t.string   "message"
     t.string   "authorization"
     t.boolean  "fraud_review"
@@ -75,5 +82,7 @@ ActiveRecord::Schema.define(:version => 20140410153635) do
     t.boolean  "success"
     t.datetime "created_at",        :null => false
     t.datetime "updated_at",        :null => false
+    t.string   "kb_account_id"
+    t.string   "kb_tenant_id"
   end
 end
