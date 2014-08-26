@@ -6,7 +6,7 @@ module Killbill #:nodoc:
 
       has_one :cybersource_transaction
 
-      def self.from_response(api_call, kb_account_id, kb_payment_id, kb_payment_transaction_id, transaction_type, kb_tenant_id, response, extra_params = {})
+      def self.from_response(api_call, kb_account_id, kb_payment_id, kb_payment_transaction_id, transaction_type, kb_tenant_id, response, extra_params = {}, model = ::Killbill::Cybersource::CybersourceResponse)
         super(api_call,
               kb_account_id,
               kb_payment_id,
@@ -31,7 +31,7 @@ module Killbill #:nodoc:
                   :params_reconciliation_id       => extract(response, 'reconciliationID'),
                   :params_subscription_id         => extract(response, 'subscriptionID'),
               }.merge!(extra_params),
-              ::Killbill::Cybersource::CybersourceResponse)
+              model)
       end
     end
   end
