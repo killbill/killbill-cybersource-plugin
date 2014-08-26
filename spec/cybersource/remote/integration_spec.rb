@@ -27,6 +27,17 @@ describe Killbill::Cybersource::PaymentPlugin do
     @plugin.stop_plugin
   end
 
+  it 'should be able to charge a Credit Card directly' do
+    properties = build_pm_properties
+    amount     = BigDecimal.new("100")
+    currency   = 'USD'
+
+    payment_response = @plugin.purchase_payment SecureRandom.uuid, SecureRandom.uuid, SecureRandom.uuid, nil, amount, currency, properties, @call_context
+    payment_response.amount.should == amount
+    payment_response.status.should == :PROCESSED
+    payment_response.transaction_type.should == :PURCHASE
+  end
+
   it 'should be able to charge and refund' do
     pm                        = create_payment_method(Killbill::Cybersource::CybersourcePaymentMethod, nil, @call_context.tenant_id)
     amount                    = BigDecimal.new("100")
