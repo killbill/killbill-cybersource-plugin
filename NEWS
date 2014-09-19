@@ -1,3 +1,7 @@
+0.0.3
+    DDL: remove constraints in cybersource_transactions
+    Make payment calls idempotent using the CyberSource OnDemand API
+
 0.0.2
     Upgrade killbill framework for connection leaks
 
