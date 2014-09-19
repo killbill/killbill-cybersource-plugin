@@ -14,6 +14,14 @@ module Killbill #:nodoc:
               ::Killbill::Cybersource::CybersourceResponse)
       end
 
+      def start_plugin
+        super
+        gateway     = lookup_gateway(:on_demand)
+        @report_api = CyberSourceOnDemand.new(gateway, logger)
+      rescue => e
+        @report_api = nil
+      end
+
       def authorize_payment(kb_account_id, kb_payment_id, kb_payment_transaction_id, kb_payment_method_id, amount, currency, properties, context)
         # Pass extra parameters for the gateway here
         options = {}
@@ -152,6 +160,26 @@ module Killbill #:nodoc:
           # Set the response body
           # gw_notification.entity =
         end
+      end
+
+      # Make calls idempotent
+      def before_gateway(gateway, kb_transaction, last_transaction, payment_source, amount_in_cents, currency, options)
+        super
+        return if @report_api.nil?
+
+        merchant_reference_code = options[:order_id]
+        report                  = @report_api.single_transaction_report(merchant_reference_code, kb_transaction.created_date.strftime('%Y%m%d'))
+
+        if !report.nil? &&
+            !report['Report'].nil? &&
+            !report['Report']['Requests'].nil? &&
+            !report['Report']['Requests']['Request'].nil? &&
+            report['Report']['Requests']['Request']['MerchantReferenceNumber'] == merchant_reference_code
+          logger.info "Skipping gateway call for existing transaction #{kb_transaction.id}, merchant reference code #{merchant_reference_code}"
+          options[:skip_gw] = true
+        end
+      rescue => e
+        logger.warn "Error checking for duplicate payment: #{e.message}"
       end
     end
   end
