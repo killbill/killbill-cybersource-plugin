@@ -6,12 +6,13 @@ module Killbill #:nodoc:
 
       has_one :cybersource_transaction
 
-      def self.from_response(api_call, kb_account_id, kb_payment_id, kb_payment_transaction_id, transaction_type, kb_tenant_id, response, extra_params = {}, model = ::Killbill::Cybersource::CybersourceResponse)
+      def self.from_response(api_call, kb_account_id, kb_payment_id, kb_payment_transaction_id, transaction_type, payment_processor_account_id, kb_tenant_id, response, extra_params = {}, model = ::Killbill::Cybersource::CybersourceResponse)
         super(api_call,
               kb_account_id,
               kb_payment_id,
               kb_payment_transaction_id,
               transaction_type,
+              payment_processor_account_id,
               kb_tenant_id,
               response,
               {
