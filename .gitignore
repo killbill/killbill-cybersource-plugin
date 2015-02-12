@@ -29,6 +29,8 @@ killbill-cybersource/
 # Testing database
 test.db
 
+cybersource.log
+
 target
 pom.xml.asc
 
