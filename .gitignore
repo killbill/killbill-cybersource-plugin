@@ -20,7 +20,6 @@ doc/
 
 .jbundler
 Jarfile.lock
-Gemfile.lock
 
 .DS_Store
 
