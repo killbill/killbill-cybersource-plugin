@@ -19,7 +19,6 @@ _yardoc
 doc/
 
 .jbundler
-Jarfile.lock
 
 .DS_Store
 
