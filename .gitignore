@@ -19,8 +19,6 @@ _yardoc
 doc/
 
 .jbundler
-Jarfile.lock
-Gemfile.lock
 
 .DS_Store
 
@@ -29,6 +27,8 @@ killbill-cybersource/
 
 # Testing database
 test.db
+
+cybersource.log
 
 target
 pom.xml.asc
