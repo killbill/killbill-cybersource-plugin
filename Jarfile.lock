@@ -1,3 +1,4 @@
+org.kill-bill.billing.plugin:killbill-plugin-api-routing:jar:0.8.4
 org.kill-bill.billing:killbill-api:jar:0.10.2
 com.fasterxml.jackson.core:jackson-annotations:jar:2.3.2
 joda-time:joda-time:jar:2.3
