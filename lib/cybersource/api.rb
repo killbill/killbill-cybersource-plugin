@@ -165,7 +165,7 @@ module Killbill #:nodoc:
       # Make calls idempotent
       def before_gateway(gateway, kb_transaction, last_transaction, payment_source, amount_in_cents, currency, options)
         super
-        return if @report_api.nil?
+        return if @report_api.nil? || options[:skip_gw]
 
         merchant_reference_code = options[:order_id]
         report                  = @report_api.single_transaction_report(merchant_reference_code, kb_transaction.created_date.strftime('%Y%m%d'))
