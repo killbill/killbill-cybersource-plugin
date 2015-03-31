@@ -34,6 +34,18 @@ module Killbill #:nodoc:
               }.merge!(extra_params),
               model)
       end
+
+      def first_reference_id
+        params_request_id
+      end
+
+      def second_reference_id
+        params_reconciliation_id
+      end
+
+      def gateway_error_code
+        params_reason_code
+      end
     end
   end
 end

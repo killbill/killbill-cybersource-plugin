@@ -53,6 +53,9 @@ describe Killbill::Cybersource::PaymentPlugin do
     payment_response.status.should eq(:PROCESSED), payment_response.gateway_error
     payment_response.amount.should == @amount
     payment_response.transaction_type.should == :PURCHASE
+    payment_response.first_payment_reference_id.should_not be_nil
+    payment_response.second_payment_reference_id.should_not be_nil
+    payment_response.gateway_error_code.should_not be_nil
 
     responses = Killbill::Cybersource::CybersourceResponse.all
     responses.size.should == 2
@@ -68,6 +71,10 @@ describe Killbill::Cybersource::PaymentPlugin do
     payment_response.amount.should == @amount
     payment_response.status.should == :PROCESSED
     payment_response.transaction_type.should == :PURCHASE
+    # No extra data when handling dups - use the get API to retrieve the details (what Kill Bill does internally too)
+    payment_response.first_payment_reference_id.should be_nil
+    payment_response.second_payment_reference_id.should be_nil
+    payment_response.gateway_error_code.should be_nil
 
     responses = Killbill::Cybersource::CybersourceResponse.all
     responses.size.should == 3
