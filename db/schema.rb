@@ -40,6 +40,7 @@ ActiveRecord::Schema.define(:version => 20140410153635) do
     t.string   "transaction_type",               :null => false
     t.string   "payment_processor_account_id"
     t.string   "txn_id"                          # cybersource transaction id
+    # Both null for void
     t.integer  "amount_in_cents"
     t.string   "currency"
     t.datetime "created_at",                     :null => false

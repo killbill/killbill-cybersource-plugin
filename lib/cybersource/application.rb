@@ -8,21 +8,17 @@ configure do
   # Usage: rackup -Ilib -E test
   if development? or test?
     # Make sure the plugin is initialized
-    plugin = ::Killbill::Cybersource::PaymentPlugin.new
-    plugin.logger = Logger.new(STDOUT)
+    plugin              = ::Killbill::Cybersource::PaymentPlugin.new
+    plugin.logger       = Logger.new(STDOUT)
     plugin.logger.level = Logger::INFO
-    plugin.conf_dir = File.dirname(File.dirname(__FILE__)) + '/..'
+    plugin.conf_dir     = File.dirname(File.dirname(__FILE__)) + '/..'
     plugin.start_plugin
   end
 end
 
 helpers do
   def plugin(session = {})
-    ::Killbill::Cybersource::PrivatePaymentPlugin.new(:cybersource,
-                                                            ::Killbill::Cybersource::CybersourcePaymentMethod,
-                                                            ::Killbill::Cybersource::CybersourceTransaction,
-                                                            ::Killbill::Cybersource::CybersourceResponse,
-                                                            session)
+    ::Killbill::Cybersource::PrivatePaymentPlugin.new(session)
   end
 end
 

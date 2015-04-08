@@ -14,6 +14,14 @@ module Killbill #:nodoc:
               ::Killbill::Cybersource::CybersourceResponse)
       end
 
+      def on_event(event)
+        # Require to deal with per tenant configuration invalidation
+        super(event)
+        #
+        # Custom event logic could be added below...
+        #
+      end
+
       def start_plugin
         super
         gateway     = lookup_gateway(:on_demand)
