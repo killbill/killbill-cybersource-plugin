@@ -160,4 +160,11 @@ describe Killbill::Cybersource::PaymentPlugin do
     payment_response.status.should eq(:PROCESSED), payment_response.gateway_error
     payment_response.transaction_type.should == :VOID
   end
+
+  it 'should be able to credit' do
+    payment_response = @plugin.credit_payment(@pm.kb_account_id, @kb_payment.id, @kb_payment.transactions[0].id, @pm.kb_payment_method_id, @amount, @currency, @properties, @call_context)
+    payment_response.status.should eq(:PROCESSED), payment_response.gateway_error
+    payment_response.amount.should == @amount
+    payment_response.transaction_type.should == :CREDIT
+  end
 end
