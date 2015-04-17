@@ -34,6 +34,8 @@ module Killbill #:nodoc:
         # Pass extra parameters for the gateway here
         options = {}
 
+        add_required_options(kb_account_id, properties, options, context)
+
         properties = merge_properties(properties, options)
         super(kb_account_id, kb_payment_id, kb_payment_transaction_id, kb_payment_method_id, amount, currency, properties, context)
       end
@@ -41,6 +43,8 @@ module Killbill #:nodoc:
       def capture_payment(kb_account_id, kb_payment_id, kb_payment_transaction_id, kb_payment_method_id, amount, currency, properties, context)
         # Pass extra parameters for the gateway here
         options = {}
+
+        add_required_options(kb_account_id, properties, options, context)
 
         properties = merge_properties(properties, options)
         super(kb_account_id, kb_payment_id, kb_payment_transaction_id, kb_payment_method_id, amount, currency, properties, context)
@@ -50,6 +54,8 @@ module Killbill #:nodoc:
         # Pass extra parameters for the gateway here
         options = {}
 
+        add_required_options(kb_account_id, properties, options, context)
+
         properties = merge_properties(properties, options)
         super(kb_account_id, kb_payment_id, kb_payment_transaction_id, kb_payment_method_id, amount, currency, properties, context)
       end
@@ -57,6 +63,8 @@ module Killbill #:nodoc:
       def void_payment(kb_account_id, kb_payment_id, kb_payment_transaction_id, kb_payment_method_id, properties, context)
         # Pass extra parameters for the gateway here
         options = {}
+
+        add_required_options(kb_account_id, properties, options, context)
 
         properties = merge_properties(properties, options)
         super(kb_account_id, kb_payment_id, kb_payment_transaction_id, kb_payment_method_id, properties, context)
@@ -66,6 +74,8 @@ module Killbill #:nodoc:
         # Pass extra parameters for the gateway here
         options = {}
 
+        add_required_options(kb_account_id, properties, options, context)
+
         properties = merge_properties(properties, options)
         super(kb_account_id, kb_payment_id, kb_payment_transaction_id, kb_payment_method_id, amount, currency, properties, context)
       end
@@ -73,6 +83,8 @@ module Killbill #:nodoc:
       def refund_payment(kb_account_id, kb_payment_id, kb_payment_transaction_id, kb_payment_method_id, amount, currency, properties, context)
         # Pass extra parameters for the gateway here
         options = {}
+
+        add_required_options(kb_account_id, properties, options, context)
 
         properties = merge_properties(properties, options)
         super(kb_account_id, kb_payment_id, kb_payment_transaction_id, kb_payment_method_id, amount, currency, properties, context)
@@ -188,6 +200,18 @@ module Killbill #:nodoc:
         end
       rescue => e
         logger.warn "Error checking for duplicate payment: #{e.message}"
+      end
+
+      def add_required_options(kb_account_id, properties, options, context)
+        if options[:email].nil?
+          email = find_value_from_properties(properties, 'email')
+          if email.nil?
+            # Note: we need to clone the context otherwise it will be transformed back to a Java one here
+            kb_account = @kb_apis.account_user_api.get_account_by_id(kb_account_id, @kb_apis.create_context(context.tenant_id))
+            email = kb_account.email
+          end
+          options[:email] = email
+        end
       end
     end
   end
