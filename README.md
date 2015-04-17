@@ -48,7 +48,7 @@ To go to production, create a `cybersource.yml` configuration file under `/var/t
 Usage
 -----
 
-To store a credit card:
+To store a credit card (note that CyberSource requires a full billing address, hence the various fields below):
 
 ```
 curl -v \
@@ -71,6 +71,26 @@ curl -v \
              "value": "Doe"
            },
            {
+             "key": "address1",
+             "value": "5th Street"
+           },
+           {
+             "key": "city",
+             "value": "San Francisco"
+           },
+           {
+             "key": "zip",
+             "value": "94111"
+           },
+           {
+             "key": "state",
+             "value": "CA"
+           },
+           {
+             "key": "country",
+             "value": "USA"
+           },
+           {
              "key": "ccExpirationMonth",
              "value": 12
            },
@@ -86,4 +106,21 @@ curl -v \
        }
      }' \
      "http://127.0.0.1:8080/1.0/kb/accounts/2a55045a-ce1d-4344-942d-b825536328f9/paymentMethods?isDefault=true&pluginProperty=skip_gw=true"
+```
+
+CyberSource also requires an email address during the payment call. The plugin will pull the one from the Kill Bill account. Alternatively, you can pass it as a plugin property:
+
+```
+curl -v \
+     -X POST \
+     -u admin:password \
+     -H 'X-Killbill-ApiKey: bob' \
+     -H 'X-Killbill-ApiSecret: lazar' \
+     -H 'X-Killbill-CreatedBy: admin' \
+     -H 'Content-Type: application/json' \
+     -d '{
+       "transactionType": "AUTHORIZE",
+       "amount": 5
+     }' \
+     http://127.0.0.1:8080/1.0/kb/accounts/2a55045a-ce1d-4344-942d-b825536328f9/payments?pluginProperty=email=john@doe.com
 ```
