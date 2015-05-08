@@ -3,6 +3,10 @@
     :test: true
     :login: <%= ENV['LOGIN'] %>
     :password: <%= ENV['PASSWORD'] %>
+  - :account_id: on_demand
+    :merchantID: <%= ENV['MERCHANT_ID'] %>
+    :username: <%= ENV['OD_USERNAME'] %>
+    :password: <%= ENV['OD_PASSWORD'] %>
 
 :database:
 # SQLite (development)
