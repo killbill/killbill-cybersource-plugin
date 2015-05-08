@@ -1,9 +1,12 @@
 require 'spec_helper'
 
 describe Killbill::Cybersource::PaymentPlugin do
+
+  include ::Killbill::Plugin::ActiveMerchant::RSpec
+
   before(:each) do
     Dir.mktmpdir do |dir|
-      file = File.new(File.join(dir, 'cybersource.yml'), "w+")
+      file = File.new(File.join(dir, 'cybersource.yml'), 'w+')
       file.write(<<-eos)
 :cybersource:
   :test: true
@@ -14,12 +17,7 @@ describe Killbill::Cybersource::PaymentPlugin do
       eos
       file.close
 
-      @plugin              = Killbill::Cybersource::PaymentPlugin.new
-      @plugin.logger       = Logger.new(STDOUT)
-      @plugin.logger.level = Logger::INFO
-      @plugin.conf_dir     = File.dirname(file)
-      @plugin.kb_apis      = Killbill::Plugin::KillbillApi.new('cybersource', {})
-      @plugin.root         = '/foo/killbill-cybersource/0.0.1'
+      @plugin = build_plugin(::Killbill::Cybersource::PaymentPlugin, 'cybersource', File.dirname(file))
 
       # Start the plugin here - since the config file will be deleted
       @plugin.start_plugin

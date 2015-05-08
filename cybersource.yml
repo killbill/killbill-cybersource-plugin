@@ -1,5 +1,8 @@
 :cybersource:
-  :test: true
+  - :account_id: default
+    :test: true
+    :login: <%= ENV['LOGIN'] %>
+    :password: <%= ENV['PASSWORD'] %>
 
 :database:
 # SQLite (development)
