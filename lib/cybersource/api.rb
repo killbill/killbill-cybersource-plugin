@@ -185,21 +185,22 @@ module Killbill #:nodoc:
       # Make calls idempotent
       def before_gateway(gateway, kb_transaction, last_transaction, payment_source, amount_in_cents, currency, options)
         super
-        return if @report_api.nil? || options[:skip_gw]
 
         merchant_reference_code = options[:order_id]
-        report                  = @report_api.single_transaction_report(merchant_reference_code, kb_transaction.created_date.strftime('%Y%m%d'))
+        report = get_report(merchant_reference_code, kb_transaction.created_date, options)
+        return nil if report.nil?
 
-        if !report.nil? &&
-            !report['Report'].nil? &&
-            !report['Report']['Requests'].nil? &&
-            !report['Report']['Requests']['Request'].nil? &&
-            report['Report']['Requests']['Request']['MerchantReferenceNumber'] == merchant_reference_code
+        if report.has_transaction_info?(merchant_reference_code)
           logger.info "Skipping gateway call for existing transaction #{kb_transaction.id}, merchant reference code #{merchant_reference_code}"
           options[:skip_gw] = true
         end
       rescue => e
         logger.warn "Error checking for duplicate payment: #{e.message}"
+      end
+
+      def get_report(merchant_reference_code, date, options)
+        return nil if @report_api.nil? || options[:skip_gw]
+        @report_api.single_transaction_report(merchant_reference_code, date.strftime('%Y%m%d'))
       end
 
       def add_required_options(kb_account_id, properties, options, context)
