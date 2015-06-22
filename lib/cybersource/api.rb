@@ -95,7 +95,40 @@ module Killbill #:nodoc:
         options = {}
 
         properties = merge_properties(properties, options)
-        super(kb_account_id, kb_payment_id, properties, context)
+        transaction_info_plugins = super(kb_account_id, kb_payment_id, properties, context)
+
+        # Can't do much if the report API isn't configured
+        return transaction_info_plugins if @report_api.nil? || Killbill::Plugin::ActiveMerchant::Utils.normalized(properties_to_hash(properties), :skip_gw)
+        # Should never happen...
+        return [] if transaction_info_plugins.nil?
+
+        # Note: this won't handle the case where we don't have any record in the DB. While this should very rarely happen
+        # (see Killbill::Plugin::ActiveMerchant::Gateway), we could use the CyberSource Payment Batch Detail Report to fix it.
+
+        stale = false
+        transaction_info_plugins.each do |transaction_info_plugin|
+          # We only need to fix the UNKNOWN ones
+          next unless transaction_info_plugin.status == :UNKNOWN
+
+          authorization = transaction_info_plugin.properties.find { |pp| pp.key == 'authorization' }
+          cybersource_response_id = transaction_info_plugin.properties.find { |pp| pp.key == 'cybersourceResponseId' }
+          next if authorization.nil? || cybersource_response_id.nil?
+
+          # Retrieve the report from CyberSource
+          order_id, _ = authorization.value.split(';')
+          report = get_report(order_id, transaction_info_plugin.created_date, options)
+          next if report.nil?
+
+          # Update our rows
+          response = CybersourceResponse.find_by(:id => cybersource_response_id.value)
+          next if response.nil?
+
+          response.update_and_create_transaction(report.response)
+          stale = true
+        end
+
+        # If we updated the state, re-fetch the latest data
+        stale ? super(kb_account_id, kb_payment_id, properties, context) : transaction_info_plugins
       end
 
       def search_payments(search_key, offset, limit, properties, context)

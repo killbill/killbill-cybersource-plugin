@@ -81,6 +81,62 @@ describe Killbill::Cybersource::PaymentPlugin do
     transactions[1].txn_id.should be_nil
   end
 
+  it 'should be able to fix UNKNOWN payments' do
+    payment_response = @plugin.purchase_payment(@pm.kb_account_id, @kb_payment.id, @kb_payment.transactions[0].id, @pm.kb_payment_method_id, @amount, @currency, @properties, @call_context)
+    payment_response.status.should eq(:PROCESSED), payment_response.gateway_error
+
+    # Force a transition to :UNKNOWN
+    Killbill::Cybersource::CybersourceTransaction.last.delete
+    response = Killbill::Cybersource::CybersourceResponse.last
+    response.update(:message => {:kb_transaction_status => 'UNKNOWN'}.to_json)
+
+    skip_gw = Killbill::Plugin::Model::PluginProperty.new
+    skip_gw.key = 'skip_gw'
+    skip_gw.value = 'true'
+    properties_with_skip_gw = @properties.clone
+    properties_with_skip_gw << skip_gw
+
+    # Set skip_gw=true, to avoid calling the report API
+    transaction_info_plugins = @plugin.get_payment_info(@pm.kb_account_id, @kb_payment.id, properties_with_skip_gw, @call_context)
+    transaction_info_plugins.size.should == 1
+    transaction_info_plugins.first.status.should eq(:UNKNOWN)
+
+    # Fix it
+    transaction_info_plugins = @plugin.get_payment_info(@pm.kb_account_id, @kb_payment.id, @properties, @call_context)
+    transaction_info_plugins.size.should == 1
+    transaction_info_plugins.first.status.should eq(:PROCESSED)
+
+    # Set skip_gw=true, to check the local state
+    transaction_info_plugins = @plugin.get_payment_info(@pm.kb_account_id, @kb_payment.id, properties_with_skip_gw, @call_context)
+    transaction_info_plugins.size.should == 1
+    transaction_info_plugins.first.status.should eq(:PROCESSED)
+
+    # Compare the state of the old and new response
+    new_response = Killbill::Cybersource::CybersourceResponse.last
+    new_response.id.should == response.id
+    new_response.api_call.should == 'purchase'
+    new_response.kb_tenant_id.should == @call_context.tenant_id
+    new_response.kb_account_id.should == @pm.kb_account_id
+    new_response.kb_payment_id.should == @kb_payment.id
+    new_response.kb_payment_transaction_id.should == @kb_payment.transactions[0].id
+    new_response.transaction_type.should == 'PURCHASE'
+    new_response.payment_processor_account_id.should == 'default'
+    # The report API doesn't give us the token
+    new_response.authorization.split(';')[0..1].should == response.authorization.split(';')[0..1]
+    new_response.test.should be_true
+    new_response.params_merchant_reference_code.should == response.params_merchant_reference_code
+    new_response.params_decision.should == response.params_decision
+    new_response.params_request_token.should == response.params_request_token
+    new_response.params_currency.should == response.params_currency
+    new_response.params_amount.should == response.params_amount
+    new_response.params_authorization_code.should == response.params_authorization_code
+    new_response.params_avs_code.should == response.params_avs_code
+    new_response.params_avs_code_raw.should == response.params_avs_code_raw
+    new_response.params_reconciliation_id.should == response.params_reconciliation_id
+    new_response.success.should be_true
+    new_response.message.should == 'Request was processed successfully.'
+  end
+
   it 'should be able to charge and refund' do
     payment_response = @plugin.purchase_payment(@pm.kb_account_id, @kb_payment.id, @kb_payment.transactions[0].id, @pm.kb_payment_method_id, @amount, @currency, @properties, @call_context)
     payment_response.status.should eq(:PROCESSED), payment_response.gateway_error

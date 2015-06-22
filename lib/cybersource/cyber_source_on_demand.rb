@@ -114,7 +114,7 @@ module Killbill #:nodoc:
         def parse_success_message(request)
           success = false
           msg = nil
-          return [success, msg] if request['ApplicationReplies'].nil? || request['ApplicationReplies']['ApplicationReply'].nil? || request['ApplicationReplies']['ApplicationReply'].empty?
+          return [success, msg] if request.nil? || request['ApplicationReplies'].nil? || request['ApplicationReplies']['ApplicationReply'].nil? || request['ApplicationReplies']['ApplicationReply'].empty?
 
           application_replies = request['ApplicationReplies']['ApplicationReply'].is_a?(Hash) ? [request['ApplicationReplies']['ApplicationReply']] : request['ApplicationReplies']['ApplicationReply']
 
