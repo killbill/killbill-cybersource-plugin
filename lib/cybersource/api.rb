@@ -102,17 +102,31 @@ module Killbill #:nodoc:
           # We only need to fix the UNDEFINED ones
           next unless transaction_info_plugin.status == :UNDEFINED
 
-          authorization = transaction_info_plugin.properties.find { |pp| pp.key == 'authorization' }
-          cybersource_response_id = transaction_info_plugin.properties.find { |pp| pp.key == 'cybersourceResponseId' }
-          next if authorization.nil? || cybersource_response_id.nil?
+          cybersource_response_id = find_value_from_properties(transaction_info_plugin.properties, 'cybersourceResponseId')
+          next if cybersource_response_id.nil?
+
+          report_date = transaction_info_plugin.created_date
+          authorization = find_value_from_properties(transaction_info_plugin.properties, 'authorization')
+
+          order_id = Killbill::Plugin::ActiveMerchant::Utils.normalized(options, :order_id)
+          # authorization is very likely nil, as we didn't get an answer from the gateway in the first place
+          order_id ||= authorization.split(';')[0] unless authorization.nil?
 
           # Retrieve the report from CyberSource
-          order_id, _ = authorization.value.split(';')
-          report = get_report(order_id, transaction_info_plugin.created_date, options, context)
+          if order_id.nil?
+            # order_id undetermined - try the defaults (see PaymentPlugin#dispatch_to_gateways)
+            report = get_report(transaction_info_plugin.kb_transaction_payment_id, report_date, options, context)
+            if report.nil?
+              kb_transaction = get_kb_transaction(kb_payment_id, transaction_info_plugin.kb_transaction_payment_id, context.tenant_id)
+              report = get_report(kb_transaction.external_key, report_date, options, context)
+            end
+          else
+            report = get_report(order_id, report_date, options, context)
+          end
           next if report.nil?
 
           # Update our rows
-          response = CybersourceResponse.find_by(:id => cybersource_response_id.value)
+          response = CybersourceResponse.find_by(:id => cybersource_response_id)
           next if response.nil?
 
           response.update_and_create_transaction(report.response)
