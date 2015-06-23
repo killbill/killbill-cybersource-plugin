@@ -123,11 +123,17 @@ module Killbill #:nodoc:
           else
             report = get_report(order_id, report_date, options, context)
           end
-          next if report.nil?
+
+          if report.nil? || report.empty?
+            logger.info("Unable to fix UNDEFINED transaction #{transaction_info_plugin.kb_transaction_payment_id} (not found in CyberSource)")
+            next
+          end
 
           # Update our rows
           response = CybersourceResponse.find_by(:id => cybersource_response_id)
           next if response.nil?
+
+          logger.info("Fixing UNDEFINED transaction #{transaction_info_plugin.kb_transaction_payment_id}: success? = #{report.response.success?}")
 
           response.update_and_create_transaction(report.response)
           stale = true
@@ -227,12 +233,10 @@ module Killbill #:nodoc:
 
         merchant_reference_code = options[:order_id]
         report = get_report(merchant_reference_code, kb_transaction.created_date, options, context)
-        return nil if report.nil?
+        return nil if report.nil? || report.empty?
 
-        if report.has_transaction_info?(merchant_reference_code)
-          logger.info "Skipping gateway call for existing transaction #{kb_transaction.id}, merchant reference code #{merchant_reference_code}"
-          options[:skip_gw] = true
-        end
+        logger.info "Skipping gateway call for existing transaction #{kb_transaction.id}, merchant reference code #{merchant_reference_code}"
+        options[:skip_gw] = true
       rescue => e
         logger.warn "Error checking for duplicate payment: #{e.message}"
       end

@@ -43,12 +43,12 @@ module Killbill #:nodoc:
           parse
         end
 
-        def has_transaction_info?(merchant_reference_code)
-          @response.params['merchantReferenceCode'] == merchant_reference_code
-        end
-
         def success?
           @response.success?
+        end
+
+        def empty?
+          @response.params['merchantReferenceCode'].nil?
         end
 
         private
