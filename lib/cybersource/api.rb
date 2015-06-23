@@ -22,14 +22,6 @@ module Killbill #:nodoc:
         #
       end
 
-      def start_plugin
-        super
-        gateway     = lookup_gateway(:on_demand)
-        @report_api = CyberSourceOnDemand.new(gateway, logger)
-      rescue => e
-        @report_api = nil
-      end
-
       def authorize_payment(kb_account_id, kb_payment_id, kb_payment_transaction_id, kb_payment_method_id, amount, currency, properties, context)
         # Pass extra parameters for the gateway here
         options = {}
@@ -97,13 +89,13 @@ module Killbill #:nodoc:
         properties = merge_properties(properties, options)
         transaction_info_plugins = super(kb_account_id, kb_payment_id, properties, context)
 
-        # Can't do much if the report API isn't configured
-        return transaction_info_plugins if @report_api.nil? || Killbill::Plugin::ActiveMerchant::Utils.normalized(properties_to_hash(properties), :skip_gw)
         # Should never happen...
         return [] if transaction_info_plugins.nil?
 
         # Note: this won't handle the case where we don't have any record in the DB. While this should very rarely happen
         # (see Killbill::Plugin::ActiveMerchant::Gateway), we could use the CyberSource Payment Batch Detail Report to fix it.
+
+        options = properties_to_hash(properties)
 
         stale = false
         transaction_info_plugins.each do |transaction_info_plugin|
@@ -116,7 +108,7 @@ module Killbill #:nodoc:
 
           # Retrieve the report from CyberSource
           order_id, _ = authorization.value.split(';')
-          report = get_report(order_id, transaction_info_plugin.created_date, options)
+          report = get_report(order_id, transaction_info_plugin.created_date, options, context)
           next if report.nil?
 
           # Update our rows
@@ -216,11 +208,11 @@ module Killbill #:nodoc:
       end
 
       # Make calls idempotent
-      def before_gateway(gateway, kb_transaction, last_transaction, payment_source, amount_in_cents, currency, options)
+      def before_gateway(gateway, kb_transaction, last_transaction, payment_source, amount_in_cents, currency, options, context)
         super
 
         merchant_reference_code = options[:order_id]
-        report = get_report(merchant_reference_code, kb_transaction.created_date, options)
+        report = get_report(merchant_reference_code, kb_transaction.created_date, options, context)
         return nil if report.nil?
 
         if report.has_transaction_info?(merchant_reference_code)
@@ -231,9 +223,10 @@ module Killbill #:nodoc:
         logger.warn "Error checking for duplicate payment: #{e.message}"
       end
 
-      def get_report(merchant_reference_code, date, options)
-        return nil if @report_api.nil? || options[:skip_gw]
-        @report_api.single_transaction_report(merchant_reference_code, date.strftime('%Y%m%d'))
+      def get_report(merchant_reference_code, date, options, context)
+        report_api = get_report_api(context.tenant_id)
+        return nil if report_api.nil? || options[:skip_gw]
+        report_api.single_transaction_report(merchant_reference_code, date.strftime('%Y%m%d'))
       end
 
       def add_required_options(kb_account_id, properties, options, context)
@@ -246,6 +239,13 @@ module Killbill #:nodoc:
           end
           options[:email] = email
         end
+      end
+
+      def get_report_api(kb_tenant_id)
+        gateway = lookup_gateway(:on_demand, kb_tenant_id)
+        CyberSourceOnDemand.new(gateway, logger)
+      rescue
+        nil
       end
     end
   end
