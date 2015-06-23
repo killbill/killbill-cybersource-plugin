@@ -81,14 +81,14 @@ describe Killbill::Cybersource::PaymentPlugin do
     transactions[1].txn_id.should be_nil
   end
 
-  it 'should be able to fix UNKNOWN payments' do
+  it 'should be able to fix UNDEFINED payments' do
     payment_response = @plugin.purchase_payment(@pm.kb_account_id, @kb_payment.id, @kb_payment.transactions[0].id, @pm.kb_payment_method_id, @amount, @currency, @properties, @call_context)
     payment_response.status.should eq(:PROCESSED), payment_response.gateway_error
 
-    # Force a transition to :UNKNOWN
+    # Force a transition to :UNDEFINED
     Killbill::Cybersource::CybersourceTransaction.last.delete
     response = Killbill::Cybersource::CybersourceResponse.last
-    response.update(:message => {:kb_transaction_status => 'UNKNOWN'}.to_json)
+    response.update(:message => {:kb_transaction_status => 'UNDEFINED'}.to_json)
 
     skip_gw = Killbill::Plugin::Model::PluginProperty.new
     skip_gw.key = 'skip_gw'
@@ -99,7 +99,7 @@ describe Killbill::Cybersource::PaymentPlugin do
     # Set skip_gw=true, to avoid calling the report API
     transaction_info_plugins = @plugin.get_payment_info(@pm.kb_account_id, @kb_payment.id, properties_with_skip_gw, @call_context)
     transaction_info_plugins.size.should == 1
-    transaction_info_plugins.first.status.should eq(:UNKNOWN)
+    transaction_info_plugins.first.status.should eq(:UNDEFINED)
 
     # Fix it
     transaction_info_plugins = @plugin.get_payment_info(@pm.kb_account_id, @kb_payment.id, @properties, @call_context)

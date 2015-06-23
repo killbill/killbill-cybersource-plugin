@@ -107,8 +107,8 @@ module Killbill #:nodoc:
 
         stale = false
         transaction_info_plugins.each do |transaction_info_plugin|
-          # We only need to fix the UNKNOWN ones
-          next unless transaction_info_plugin.status == :UNKNOWN
+          # We only need to fix the UNDEFINED ones
+          next unless transaction_info_plugin.status == :UNDEFINED
 
           authorization = transaction_info_plugin.properties.find { |pp| pp.key == 'authorization' }
           cybersource_response_id = transaction_info_plugin.properties.find { |pp| pp.key == 'cybersourceResponseId' }

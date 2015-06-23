@@ -61,7 +61,7 @@ module Killbill #:nodoc:
         # Update the response row
         update!(updated_attributes)
 
-        # Create the transaction row if needed (cannot have been created before or the state wouldn't have been UNKNOWN)
+        # Create the transaction row if needed (cannot have been created before or the state wouldn't have been UNDEFINED)
         if gw_response.success?
           amount = gw_response.params['amount']
           currency = gw_response.params['currency']
