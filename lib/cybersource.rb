@@ -18,6 +18,8 @@ require 'yaml'
 require 'killbill'
 require 'killbill/helpers/active_merchant'
 
+require 'cybersource/ext/active_merchant/active_merchant.rb'
+
 require 'cybersource/cyber_source_on_demand'
 require 'cybersource/api'
 require 'cybersource/private_api'

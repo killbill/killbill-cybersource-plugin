@@ -212,4 +212,14 @@ describe Killbill::Cybersource::PaymentPlugin do
     payment_response.amount.should == @amount
     payment_response.transaction_type.should == :CREDIT
   end
+
+  # See https://github.com/killbill/killbill-cybersource-plugin/issues/4
+  it 'handles errors gracefully' do
+    properties_with_no_expiration_year = build_pm_properties
+    cc_exp_year = properties_with_no_expiration_year.find { |prop| prop.key == 'ccExpirationYear' }
+    cc_exp_year.value = nil
+
+    payment_response = @plugin.purchase_payment(@pm.kb_account_id, @kb_payment.id, @kb_payment.transactions[0].id, SecureRandom.uuid, @amount, @currency, properties_with_no_expiration_year, @call_context)
+    payment_response.status.should eq(:ERROR), payment_response.gateway_error
+  end
 end
