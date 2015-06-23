@@ -88,7 +88,7 @@ describe Killbill::Cybersource::PaymentPlugin do
     # Force a transition to :UNDEFINED
     Killbill::Cybersource::CybersourceTransaction.last.delete
     response = Killbill::Cybersource::CybersourceResponse.last
-    response.update(:message => {:kb_transaction_status => 'UNDEFINED'}.to_json)
+    response.update(:message => {:payment_plugin_status => 'UNDEFINED'}.to_json)
 
     skip_gw = Killbill::Plugin::Model::PluginProperty.new
     skip_gw.key = 'skip_gw'
