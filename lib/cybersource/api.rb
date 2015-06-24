@@ -124,7 +124,11 @@ module Killbill #:nodoc:
             report = get_report(order_id, report_date, options, context)
           end
 
-          if report.nil? || report.empty?
+          # Report API not configured or skip_gw=true
+          next if report.nil?
+
+          # Report not found
+          if report.empty?
             logger.info("Unable to fix UNDEFINED transaction #{transaction_info_plugin.kb_transaction_payment_id} (not found in CyberSource)")
             next
           end
