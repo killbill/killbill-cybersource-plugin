@@ -76,7 +76,7 @@ module Killbill #:nodoc:
                                         :transaction_type => transaction_type,
                                         :payment_processor_account_id => payment_processor_account_id,
                                         :txn_id => txn_id,
-                                        :created_at => created_at,
+                                        :created_at => updated_at,
                                         :updated_at => updated_at).save!
         end
       end
