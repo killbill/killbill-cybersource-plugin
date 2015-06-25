@@ -135,7 +135,7 @@ module Killbill #:nodoc:
           # Thanks ActiveSupport!
           Hash.from_xml(body)
         rescue # Parser error - request failed
-          @logger.warn "Error checking for duplicate payment, CyberSource response: #{body}"
+          @logger.warn "Error checking for duplicate payment, CyberSource response: #{!body.nil? && body.respond_to?(:message) ? body.message : body}"
           nil
         end
       end
