@@ -56,6 +56,9 @@ describe Killbill::Cybersource::PaymentPlugin do
     transactions.size.should == 1
     transactions[0].api_call.should == 'purchase'
 
+    # Skip the rest of the test if the report API isn't configured
+    return if @plugin.get_report_api(@call_context.tenant_id).nil?
+
     payment_response = @plugin.purchase_payment(@pm.kb_account_id, @kb_payment.id, @kb_payment.transactions[0].id, @pm.kb_payment_method_id, @amount, @currency, @properties, @call_context)
     payment_response.amount.should == @amount
     payment_response.status.should == :PROCESSED
