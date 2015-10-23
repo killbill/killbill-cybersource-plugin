@@ -31,6 +31,10 @@ describe Killbill::Cybersource::PaymentPlugin do
     @plugin.stop_plugin
   end
 
+  let(:with_report_api) do
+    @plugin.get_report_api(@call_context.tenant_id).present?
+  end
+
   it 'should be able to charge a Credit Card directly and calls should be idempotent' do
     properties = build_pm_properties
 
@@ -57,7 +61,7 @@ describe Killbill::Cybersource::PaymentPlugin do
     transactions[0].api_call.should == 'purchase'
 
     # Skip the rest of the test if the report API isn't configured
-    return if @plugin.get_report_api(@call_context.tenant_id).nil?
+    break unless with_report_api
 
     payment_response = @plugin.purchase_payment(@pm.kb_account_id, @kb_payment.id, @kb_payment.transactions[0].id, @pm.kb_payment_method_id, @amount, @currency, @properties, @call_context)
     payment_response.amount.should == @amount
@@ -104,15 +108,18 @@ describe Killbill::Cybersource::PaymentPlugin do
     transaction_info_plugins.size.should == 1
     transaction_info_plugins.first.status.should eq(:UNDEFINED)
 
-    # Fix it
-    transaction_info_plugins = @plugin.get_payment_info(@pm.kb_account_id, @kb_payment.id, @properties, @call_context)
-    transaction_info_plugins.size.should == 1
-    transaction_info_plugins.first.status.should eq(:PROCESSED)
+    # Skip if the report API isn't configured
+    if with_report_api
+      # Fix it
+      transaction_info_plugins = @plugin.get_payment_info(@pm.kb_account_id, @kb_payment.id, @properties, @call_context)
+      transaction_info_plugins.size.should == 1
+      transaction_info_plugins.first.status.should eq(:PROCESSED)
 
-    # Set skip_gw=true, to check the local state
-    transaction_info_plugins = @plugin.get_payment_info(@pm.kb_account_id, @kb_payment.id, properties_with_skip_gw, @call_context)
-    transaction_info_plugins.size.should == 1
-    transaction_info_plugins.first.status.should eq(:PROCESSED)
+      # Set skip_gw=true, to check the local state
+      transaction_info_plugins = @plugin.get_payment_info(@pm.kb_account_id, @kb_payment.id, properties_with_skip_gw, @call_context)
+      transaction_info_plugins.size.should == 1
+      transaction_info_plugins.first.status.should eq(:PROCESSED)
+    end
 
     # Compare the state of the old and new response
     new_response = Killbill::Cybersource::CybersourceResponse.last
@@ -137,7 +144,7 @@ describe Killbill::Cybersource::PaymentPlugin do
     new_response.params_avs_code_raw.should == response.params_avs_code_raw
     new_response.params_reconciliation_id.should == response.params_reconciliation_id
     new_response.success.should be_true
-    new_response.message.should == 'Request was processed successfully.'
+    new_response.message.should == (with_report_api ? 'Request was processed successfully.' : '{"payment_plugin_status":"UNDEFINED"}')
   end
 
   it 'should be able to charge and refund' do
