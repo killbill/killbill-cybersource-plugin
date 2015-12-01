@@ -2,6 +2,8 @@ module Killbill #:nodoc:
   module Cybersource #:nodoc:
     class PaymentPlugin < ::Killbill::Plugin::ActiveMerchant::PaymentPlugin
 
+      SIXTY_DAYS_AGO = (60 * 86400)
+
       def initialize
         gateway_builder = Proc.new do |config|
           ::ActiveMerchant::Billing::CyberSourceGateway.new :login => config[:login], :password => config[:password]
@@ -73,6 +75,11 @@ module Killbill #:nodoc:
       end
 
       def refund_payment(kb_account_id, kb_payment_id, kb_payment_transaction_id, kb_payment_method_id, amount, currency, properties, context)
+        if should_credit?(kb_payment_id, context, properties_to_hash(properties))
+          # Note: from the plugin perspective, this transaction is a CREDIT but Kill Bill doesn't care about PaymentTransactionInfoPlugin#TransactionType
+          return credit_payment(kb_account_id, kb_payment_id, kb_payment_transaction_id, kb_payment_method_id, amount, currency, properties, context)
+        end
+
         # Pass extra parameters for the gateway here
         options = {}
 
@@ -229,6 +236,18 @@ module Killbill #:nodoc:
           # Set the response body
           # gw_notification.entity =
         end
+      end
+
+      def should_credit?(kb_payment_id, context, options = {})
+        # Transform refunds on old payments into credits automatically unless the disable_auto_credit property is passed
+        return false if Killbill::Plugin::ActiveMerchant::Utils.normalized(options, :disable_auto_credit)
+
+        transaction = @transaction_model.find_candidate_transaction_for_refund(kb_payment_id, context.tenant_id)
+        return false if transaction.nil?
+
+        threshold = (Killbill::Plugin::ActiveMerchant::Utils.normalized(options, :auto_credit_threshold) || SIXTY_DAYS_AGO).to_i
+        # Note: we cannot use Kill Bill clock yet (see https://github.com/killbill/killbill-platform/issues/4)
+        (Time.now - transaction.created_at) >= threshold
       end
 
       # Make calls idempotent
