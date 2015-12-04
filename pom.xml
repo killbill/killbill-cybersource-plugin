@@ -25,7 +25,7 @@
     <groupId>org.kill-bill.billing.plugin.ruby</groupId>
     <artifactId>cybersource-plugin</artifactId>
     <packaging>pom</packaging>
-    <version>3.0.0</version>
+    <version>3.1.0</version>
     <name>cybersource-plugin</name>
     <url>http://github.com/killbill/killbill-cybersource-plugin</url>
     <description>Plugin for accessing Cybersource as a payment gateway</description>
