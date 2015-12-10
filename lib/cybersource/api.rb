@@ -239,6 +239,8 @@ module Killbill #:nodoc:
       end
 
       def should_credit?(kb_payment_id, context, options = {})
+
+
         # Transform refunds on old payments into credits automatically unless the disable_auto_credit property is passed
         return false if Killbill::Plugin::ActiveMerchant::Utils.normalized(options, :disable_auto_credit)
 
@@ -246,8 +248,10 @@ module Killbill #:nodoc:
         return false if transaction.nil?
 
         threshold = (Killbill::Plugin::ActiveMerchant::Utils.normalized(options, :auto_credit_threshold) || SIXTY_DAYS_AGO).to_i
-        # Note: we cannot use Kill Bill clock yet (see https://github.com/killbill/killbill-platform/issues/4)
-        (Time.now - transaction.created_at) >= threshold
+
+        # we might want a 'util' function to make the conversion joda DateTime to a ruby Time object
+        now = Time.parse(@clock.get_clock.get_utc_now.to_s)
+        (now - transaction.created_at) >= threshold
       end
 
       # Make calls idempotent
