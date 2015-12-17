@@ -239,8 +239,6 @@ module Killbill #:nodoc:
       end
 
       def should_credit?(kb_payment_id, context, options = {})
-
-
         # Transform refunds on old payments into credits automatically unless the disable_auto_credit property is passed
         return false if Killbill::Plugin::ActiveMerchant::Utils.normalized(options, :disable_auto_credit)
 
