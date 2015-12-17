@@ -39,7 +39,7 @@ describe Killbill::Cybersource::PaymentPlugin do
     with_transaction(kb_payment_id, :VOID, 60.days.ago, context) { @plugin.should_credit?(kb_payment_id, context).should be_false }
     with_transaction(SecureRandom.uuid, :AUTHORIZE, 60.days.ago, context) { @plugin.should_credit?(kb_payment_id, context).should be_false }
 
-    with_transaction(kb_payment_id, :AUTHORIZE, 60.days.ago, context) do
+    with_transaction(kb_payment_id, :AUTHORIZE, 61.days.ago, context) do
       @plugin.should_credit?(kb_payment_id, context, {:disable_auto_credit => true}).should be_false
       @plugin.should_credit?(kb_payment_id, context, {:auto_credit_threshold => 61 * 86400}).should be_false
       @plugin.should_credit?(kb_payment_id, context).should be_true
