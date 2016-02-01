@@ -46,7 +46,8 @@ CREATE TABLE `cybersource_transactions` (
   `kb_account_id` varchar(255) NOT NULL,
   `kb_tenant_id` varchar(255) NOT NULL,
   PRIMARY KEY (`id`),
-  KEY `index_cybersource_transactions_on_kb_payment_id` (`kb_payment_id`)
+  KEY `index_cybersource_transactions_on_kb_payment_id` (`kb_payment_id`),
+  KEY `index_cybersource_transactions_on_cybersource_response_id` (`cybersource_response_id`)
 ) ENGINE=InnoDB CHARACTER SET utf8 COLLATE utf8_bin;
 
 CREATE TABLE `cybersource_responses` (
@@ -86,5 +87,6 @@ CREATE TABLE `cybersource_responses` (
   `updated_at` datetime NOT NULL,
   `kb_account_id` varchar(255) DEFAULT NULL,
   `kb_tenant_id` varchar(255) DEFAULT NULL,
-  PRIMARY KEY (`id`)
+  PRIMARY KEY (`id`),
+  KEY `index_cybersource_responses_on_kb_payment_id_kb_tenant_id` (`kb_payment_id`, `kb_tenant_id`)
 ) ENGINE=InnoDB CHARACTER SET utf8 COLLATE utf8_bin;
