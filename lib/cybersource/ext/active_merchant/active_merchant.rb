@@ -2,6 +2,18 @@ module ActiveMerchant
   module Billing
     class CyberSourceGateway
 
+      # Add support for CreditCard objects
+      def build_credit_request(money, creditcard_or_reference, options)
+        xml = Builder::XmlMarkup.new :indent => 2
+
+        setup_address_hash(options)
+
+        add_payment_method_or_subscription(xml, money, creditcard_or_reference, options)
+        add_credit_service(xml)
+
+        xml.target!
+      end
+
       # See https://github.com/killbill/killbill-cybersource-plugin/issues/4
       def commit(request, options)
         request = build_request(request, options)
