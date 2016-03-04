@@ -214,6 +214,16 @@ describe Killbill::Cybersource::PaymentPlugin do
     payment_response = @plugin.void_payment(@pm.kb_account_id, @kb_payment.id, @kb_payment.transactions[2].id, @pm.kb_payment_method_id, @properties, @call_context)
     payment_response.status.should eq(:PROCESSED), payment_response.gateway_error
     payment_response.transaction_type.should == :VOID
+    Killbill::Cybersource::CybersourceResponse.last.params_amount.should == '10.00'
+
+    # From the CyberSource documentation:
+    # When you void a capture, a hold remains on the unused credit card funds. If you are not going to re-capture the authorization as described in "Capture After Void," page 71, and if
+    # your processor supports authorization reversal after void as described in "Authorization Reversal After Void," page 39, CyberSource recommends that you request an authorization reversal
+    # to release the hold on the unused credit card funds.
+    payment_response = @plugin.void_payment(@pm.kb_account_id, @kb_payment.id, @kb_payment.transactions[3].id, @pm.kb_payment_method_id, @properties, @call_context)
+    payment_response.status.should eq(:PROCESSED), payment_response.gateway_error
+    payment_response.transaction_type.should == :VOID
+    Killbill::Cybersource::CybersourceResponse.last.params_amount.should == '100.00'
   end
 
   it 'should be able to credit' do
