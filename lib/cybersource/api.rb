@@ -282,6 +282,9 @@ module Killbill #:nodoc:
           end
           options[:email] = email
         end
+
+        ::Killbill::Plugin::ActiveMerchant::Utils.normalize_property(properties, 'ignore_avs')
+        ::Killbill::Plugin::ActiveMerchant::Utils.normalize_property(properties, 'ignore_cvv')
       end
 
       def get_report_api(kb_tenant_id)
