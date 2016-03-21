@@ -135,6 +135,8 @@ Plugin properties
 | skip_gw                      | If true, skip the call to CyberSource                             |
 | payment_processor_account_id | Config entry name of the merchant account to use                  |
 | external_key_as_order_id     | If true, set the payment external key as the CyberSource order id |
+| ignore_avs                   | If true, ignore the results of AVS checking                       |
+| ignore_cvv                   | If true, ignore the results of CVN checking                       |
 | cc_first_name                | Credit card holder first name                                     |
 | cc_last_name                 | Credit card holder last name                                      |
 | cc_type                      | Credit card brand                                                 |
