@@ -99,6 +99,7 @@ describe Killbill::Cybersource::PaymentPlugin do
       ::ActiveMerchant::Billing::CyberSourceGateway.any_instance.stub(:ssl_post).and_return(bad_password_response)
       purchase(:CANCELED).gateway_error.should == 'wsse:FailedCheck: Security Data : UsernameToken authentication failed.'
     end
+
     it 'handles unsuccessful authorizations as ERROR transactions' do
       ::ActiveMerchant::Billing::CyberSourceGateway.any_instance.stub(:ssl_post).and_return(unsuccessful_authorization_response)
       purchase(:ERROR).gateway_error.should == 'Invalid account number'
