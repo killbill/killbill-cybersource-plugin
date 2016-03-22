@@ -25,8 +25,13 @@ module ActiveMerchant
         response = parse(raw_response)
 
         success = response[:decision] == 'ACCEPT'
-        message = @@response_codes[('r' + response[:reasonCode]).to_sym] rescue response[:message]
         authorization = success ? [options[:order_id], response[:requestID], response[:requestToken]].compact.join(";") : nil
+
+        if response[:faultcode] == 'wsse:FailedCheck'
+          message = { :exception_message => response[:message], :payment_plugin_status => :CANCELED }.to_json
+        else
+          message = @@response_codes[('r' + response[:reasonCode]).to_sym] rescue response[:message]
+        end
 
         Response.new(success, message, response,
                      :test => test?,
