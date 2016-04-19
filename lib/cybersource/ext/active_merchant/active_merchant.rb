@@ -1,5 +1,8 @@
 module ActiveMerchant
   module Billing
+
+    KB_PLUGIN_VERSION = Gem.loaded_specs['killbill-cybersource'].version.version rescue nil
+
     class CyberSourceGateway
 
       # Add support for CreditCard objects
@@ -39,6 +42,14 @@ module ActiveMerchant
                      :avs_result => {:code => response[:avsCode]},
                      :cvv_result => response[:cvCode]
         )
+      end
+
+      def add_merchant_data(xml, options)
+        xml.tag! 'merchantID', @options[:login]
+        xml.tag! 'merchantReferenceCode', options[:order_id]
+        xml.tag! 'clientLibrary' ,'Kill Bill'
+        xml.tag! 'clientLibraryVersion', KB_PLUGIN_VERSION
+        xml.tag! 'clientEnvironment' , RUBY_PLATFORM
       end
     end
   end
