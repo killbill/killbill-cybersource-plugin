@@ -88,6 +88,35 @@ describe Killbill::Cybersource::PaymentPlugin do
     transactions[1].txn_id.should be_nil
   end
 
+  it 'should be able to verify a Credit Card' do
+    # Valid card
+    properties = build_pm_properties
+    payment_response = @plugin.authorize_payment(@pm.kb_account_id, @kb_payment.id, @kb_payment.transactions[0].id, @pm.kb_payment_method_id, 0, @currency, properties, @call_context)
+    payment_response.status.should eq(:PROCESSED), payment_response.gateway_error
+    payment_response.amount.should == 0
+    payment_response.transaction_type.should == :AUTHORIZE
+    payment_response.first_payment_reference_id.should_not be_nil
+    payment_response.second_payment_reference_id.should_not be_nil
+    payment_response.gateway_error_code.should_not be_nil
+
+    # Note that you won't be able to void the $0 auth
+    payment_response = @plugin.void_payment(@pm.kb_account_id, @kb_payment.id, @kb_payment.transactions[1].id, @pm.kb_payment_method_id, @properties, @call_context)
+    payment_response.status.should eq(:ERROR), payment_response.gateway_error
+    payment_response.transaction_type.should == :VOID
+
+    # Invalid card
+    # See http://www.cybersource.com/developers/getting_started/test_and_manage/simple_order_api/HTML/General_testing_info/soapi_general_test.html
+    properties = build_pm_properties(nil, { :cc_exp_year => 1998 })
+    payment_response = @plugin.authorize_payment(@pm.kb_account_id, @kb_payment.id, @kb_payment.transactions[0].id, @pm.kb_payment_method_id, 0, @currency, properties, @call_context)
+    payment_response.status.should eq(:ERROR), payment_response.gateway_error
+    payment_response.amount.should be_nil
+    payment_response.transaction_type.should == :AUTHORIZE
+    payment_response.first_payment_reference_id.should_not be_nil
+    payment_response.second_payment_reference_id.should be_nil
+    payment_response.gateway_error.should == 'Expired card'
+    payment_response.gateway_error_code.should == '202'
+  end
+
   it 'should be able to fix UNDEFINED payments' do
     payment_response = @plugin.purchase_payment(@pm.kb_account_id, @kb_payment.id, @kb_payment.transactions[0].id, @pm.kb_payment_method_id, @amount, @currency, @properties, @call_context)
     payment_response.status.should eq(:PROCESSED), payment_response.gateway_error
