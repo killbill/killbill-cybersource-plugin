@@ -38,11 +38,11 @@ module ActiveMerchant
         success = response[:decision] == 'ACCEPT'
         authorization = success ? [options[:order_id], response[:requestID], response[:requestToken]].compact.join(";") : nil
 
-        if response[:faultcode] == 'wsse:FailedCheck'
-          message = { :exception_message => response[:message], :payment_plugin_status => :CANCELED }.to_json
-        else
-          message = @@response_codes[('r' + response[:reasonCode]).to_sym] rescue response[:message]
+        message = nil
+        if response[:reasonCode].blank? && (response[:faultcode] == 'wsse:FailedCheck' || response[:faultcode] == 'wsse:InvalidSecurity' || response[:faultcode] == 'soap:Client' || response[:faultcode] == 'c:ServerError')
+          message = {:exception_message => response[:message], :payment_plugin_status => :CANCELED}.to_json
         end
+        message ||= @@response_codes[('r' + response[:reasonCode].to_s).to_sym] || response[:message]
 
         Response.new(success, message, response,
                      :test => test?,
