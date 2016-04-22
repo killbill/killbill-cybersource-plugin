@@ -7,6 +7,7 @@
 #    :merchantID: <%= ENV['MERCHANT_ID'] %>
 #    :username: <%= ENV['OD_USERNAME'] %>
 #    :password: <%= ENV['OD_PASSWORD'] %>
+#    :check_for_duplicates: true
 
 :database:
 # SQLite (development)

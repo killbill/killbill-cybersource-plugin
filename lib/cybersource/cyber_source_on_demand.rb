@@ -33,6 +33,10 @@ module Killbill #:nodoc:
         CyberSourceOnDemandTransactionReport.new(@gateway.ssl_post(endpoint, data, headers), @logger)
       end
 
+      def check_for_duplicates?
+        @gateway.config[:check_for_duplicates] == true
+      end
+
       class CyberSourceOnDemandTransactionReport
 
         attr_reader :response

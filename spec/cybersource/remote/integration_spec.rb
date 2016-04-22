@@ -31,8 +31,12 @@ describe Killbill::Cybersource::PaymentPlugin do
     @plugin.stop_plugin
   end
 
+  let(:report_api) do
+    @plugin.get_report_api({}, @call_context)
+  end
+
   let(:with_report_api) do
-    @plugin.get_report_api({}, @call_context).present?
+    report_api.present?
   end
 
   it 'should be able to charge a Credit Card directly and calls should be idempotent' do
@@ -57,8 +61,8 @@ describe Killbill::Cybersource::PaymentPlugin do
     transactions.size.should == 1
     transactions[0].api_call.should == 'purchase'
 
-    # Skip the rest of the test if the report API isn't configured
-    break unless with_report_api
+    # Skip the rest of the test if the report API isn't configured to check for duplicates
+    break unless with_report_api && report_api.check_for_duplicates?
 
     payment_response = @plugin.purchase_payment(@pm.kb_account_id, @kb_payment.id, @kb_payment.transactions[0].id, @pm.kb_payment_method_id, @amount, @currency, @properties, @call_context)
     payment_response.amount.should == @amount

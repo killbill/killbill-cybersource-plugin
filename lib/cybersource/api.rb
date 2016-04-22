@@ -266,13 +266,15 @@ module Killbill #:nodoc:
         logger.warn "Error checking for duplicate payment: #{e.message}"
       end
 
+      # Duplicate check
       def get_report_for_kb_transaction(merchant_reference_code, kb_transaction, options, context)
         report_api = get_report_api(options, context)
-        return nil if report_api.nil?
+        return nil if report_api.nil? || !report_api.check_for_duplicates?
         # kb_transaction is a Utils::LazyEvaluator, delay evaluation as much as possible
         get_single_transaction_report(report_api, merchant_reference_code, kb_transaction.created_date)
       end
 
+      # Janitor path
       def get_report(merchant_reference_code, date, options, context)
         report_api = get_report_api(options, context)
         return nil if report_api.nil?
