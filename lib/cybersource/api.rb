@@ -31,7 +31,18 @@ module Killbill #:nodoc:
         add_required_options(kb_account_id, properties, options, context)
 
         properties = merge_properties(properties, options)
-        super(kb_account_id, kb_payment_id, kb_payment_transaction_id, kb_payment_method_id, amount, currency, properties, context)
+        auth_response = super(kb_account_id, kb_payment_id, kb_payment_transaction_id, kb_payment_method_id, amount, currency, properties, context)
+
+        # Error 234 is "A problem exists with your CyberSource merchant configuration", most likely the processor used doesn't support $0 auth for this card type
+        if auth_response.gateway_error_code == '234' && to_cents(amount, currency) == 0
+          h_props = properties_to_hash(properties)
+          if ::Killbill::Plugin::ActiveMerchant::Utils.normalized(h_props, :force_validation)
+            force_validation_amount = (::Killbill::Plugin::ActiveMerchant::Utils.normalized(h_props, :force_validation_amount) || 1).to_f
+            auth_response = force_validation(auth_response, kb_account_id, kb_payment_id, kb_payment_transaction_id, kb_payment_method_id, force_validation_amount, currency, properties, context)
+          end
+        end
+
+        auth_response
       end
 
       def capture_payment(kb_account_id, kb_payment_id, kb_payment_transaction_id, kb_payment_method_id, amount, currency, properties, context)
@@ -306,6 +317,45 @@ module Killbill #:nodoc:
         CyberSourceOnDemand.new(gateway, logger)
       rescue
         nil
+      end
+
+      # TODO: should this eventually be hardened and extracted into the base framework?
+      def force_validation(auth_response, kb_account_id, kb_payment_id, kb_payment_transaction_id, kb_payment_method_id, amount, currency, properties, context)
+        # Trigger a non-$0 auth
+        new_auth_response = nil
+        begin
+          new_auth_response = authorize_payment(kb_account_id, kb_payment_id, kb_payment_transaction_id, kb_payment_method_id, amount, currency, properties, context)
+          new_auth_response.amount = 0 # For consistency
+        rescue => e
+          # Note: state might be broken here (potentially two responses with the same kb_payment_transaction_id)
+          @logger.warn("Unexpected exception while forcing validation for kb_payment_id='#{kb_payment_id}', kb_payment_transaction_id='#{kb_payment_transaction_id}'\n#{e.backtrace.join("\n")}")
+          return auth_response
+        end
+
+        # Void it right away on success
+        if new_auth_response.status == :PROCESSED
+          begin
+            void_payment(kb_account_id, kb_payment_id, SecureRandom.uuid, kb_payment_method_id, properties, context)
+          rescue => e
+            @logger.warn("Unexpected exception while voiding forced validation for kb_payment_id='#{kb_payment_id}', kb_payment_transaction_id='#{kb_payment_transaction_id}'\n#{e.backtrace.join("\n")}")
+          end
+        end
+
+        # Finally, clean up the state of the original (failed) auth
+        cybersource_response_id = find_value_from_properties(auth_response.properties, 'cybersourceResponseId')
+        if cybersource_response_id.nil?
+          @logger.warn "Unable to find cybersourceResponseId matching failed authorization for kb_payment_id='#{kb_payment_id}', kb_payment_transaction_id='#{kb_payment_transaction_id}'"
+        else
+          response = CybersourceResponse.find_by(:id => cybersource_response_id)
+          if response.nil?
+            @logger.warn "Unable to find response matching failed authorization for kb_payment_id='#{kb_payment_id}', kb_payment_transaction_id='#{kb_payment_transaction_id}'"
+          else
+            # Change the kb_payment_transaction_id to avoid confusing Kill Bill (there is no transaction row to update since the call wasn't successful)
+            response.update(:kb_payment_transaction_id => SecureRandom.uuid)
+          end
+        end
+
+        new_auth_response
       end
     end
   end

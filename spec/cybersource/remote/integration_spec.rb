@@ -98,16 +98,51 @@ describe Killbill::Cybersource::PaymentPlugin do
     payment_response.second_payment_reference_id.should_not be_nil
 
     # Note that you won't be able to void the $0 auth
-    payment_response = @plugin.void_payment(@pm.kb_account_id, @kb_payment.id, @kb_payment.transactions[1].id, @pm.kb_payment_method_id, @properties, @call_context)
+    payment_response = @plugin.void_payment(@pm.kb_account_id, @kb_payment.id, SecureRandom.uuid, @pm.kb_payment_method_id, @properties, @call_context)
     check_response(payment_response, nil, :VOID, :CANCELED, 'One or more fields contains invalid data', '102')
 
     # Invalid card
     # See http://www.cybersource.com/developers/getting_started/test_and_manage/simple_order_api/HTML/General_testing_info/soapi_general_test.html
     properties = build_pm_properties(nil, { :cc_exp_year => 1998 })
-    payment_response = @plugin.authorize_payment(@pm.kb_account_id, @kb_payment.id, @kb_payment.transactions[0].id, @pm.kb_payment_method_id, 0, @currency, properties, @call_context)
+    payment_response = @plugin.authorize_payment(@pm.kb_account_id, SecureRandom.uuid, SecureRandom.uuid, @pm.kb_payment_method_id, 0, @currency, properties, @call_context)
     check_response(payment_response, nil, :AUTHORIZE, :ERROR, 'Expired card', '202')
     payment_response.first_payment_reference_id.should_not be_nil
     payment_response.second_payment_reference_id.should be_nil
+
+    # Discover card (doesn't support $0 auth on Paymentech)
+    # See http://www.cybersource.com/developers/other_resources/quick_references/test_cc_numbers/
+    properties = build_pm_properties(nil, { :cc_number => '6011111111111117', :cc_type => :discover })
+    kb_payment_id = SecureRandom.uuid
+    payment_response = @plugin.authorize_payment(@pm.kb_account_id, kb_payment_id, SecureRandom.uuid, @pm.kb_payment_method_id, 0, @currency, properties, @call_context)
+    check_response(payment_response, nil, :AUTHORIZE, :CANCELED, 'A problem exists with your CyberSource merchant configuration', '234')
+    payment_response.first_payment_reference_id.should_not be_nil
+    payment_response.second_payment_reference_id.should be_nil
+    # Verify the GET path
+    transaction_info_plugins = @plugin.get_payment_info(@pm.kb_account_id, kb_payment_id, @properties, @call_context)
+    transaction_info_plugins.size.should == 1
+    transaction_info_plugins.first.transaction_type.should eq(:AUTHORIZE)
+    transaction_info_plugins.first.status.should eq(:CANCELED)
+
+    # Force the validation on Discover
+    properties << build_property('force_validation', 'true')
+    kb_payment_id = SecureRandom.uuid
+    kb_transaction_id = SecureRandom.uuid
+    payment_response = @plugin.authorize_payment(@pm.kb_account_id, kb_payment_id, kb_transaction_id, @pm.kb_payment_method_id, 0, @currency, properties, @call_context)
+    check_response(payment_response, 0, :AUTHORIZE, :PROCESSED, 'Successful transaction', '100')
+    payment_response.first_payment_reference_id.should_not be_nil
+    payment_response.second_payment_reference_id.should_not be_nil
+    # Verify the GET path
+    transaction_info_plugins = @plugin.get_payment_info(@pm.kb_account_id, kb_payment_id, @properties, @call_context)
+    transaction_info_plugins.size.should == 3
+    transaction_info_plugins[0].transaction_type.should eq(:AUTHORIZE)
+    transaction_info_plugins[0].status.should eq(:CANCELED)
+    transaction_info_plugins[0].kb_transaction_payment_id.should_not eq(kb_transaction_id)
+    transaction_info_plugins[1].transaction_type.should eq(:AUTHORIZE)
+    transaction_info_plugins[1].status.should eq(:PROCESSED)
+    transaction_info_plugins[1].kb_transaction_payment_id.should eq(kb_transaction_id)
+    transaction_info_plugins[2].transaction_type.should eq(:VOID)
+    transaction_info_plugins[2].status.should eq(:PROCESSED)
+    transaction_info_plugins[2].kb_transaction_payment_id.should_not eq(kb_transaction_id)
   end
 
   it 'should be able to fix UNDEFINED payments' do

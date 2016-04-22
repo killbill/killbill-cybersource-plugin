@@ -130,29 +130,31 @@ curl -v \
 Plugin properties
 -----------------
 
-| Key                          | Description                                                       |
-| ---------------------------: | ----------------------------------------------------------------- |
-| skip_gw                      | If true, skip the call to CyberSource                             |
-| payment_processor_account_id | Config entry name of the merchant account to use                  |
-| external_key_as_order_id     | If true, set the payment external key as the CyberSource order id |
-| ignore_avs                   | If true, ignore the results of AVS checking                       |
-| ignore_cvv                   | If true, ignore the results of CVN checking                       |
-| cc_first_name                | Credit card holder first name                                     |
-| cc_last_name                 | Credit card holder last name                                      |
-| cc_type                      | Credit card brand                                                 |
-| cc_expiration_month          | Credit card expiration month                                      |
-| cc_expiration_year           | Credit card expiration year                                       |
-| cc_verification_value        | CVC/CVV/CVN                                                       |
-| email                        | Purchaser email                                                   |
-| address1                     | Billing address first line                                        |
-| address2                     | Billing address second line                                       |
-| city                         | Billing address city                                              |
-| zip                          | Billing address zip code                                          |
-| state                        | Billing address state                                             |
-| country                      | Billing address country                                           |
-| eci                          | Network tokenization attribute                                    |
-| payment_cryptogram           | Network tokenization attribute                                    |
-| transaction_id               | Network tokenization attribute                                    |
-| payment_instrument_name      | ApplePay tokenization attribute                                   |
-| payment_network              | ApplePay tokenization attribute                                   |
-| transaction_identifier       | ApplePay tokenization attribute                                   |
+| Key                          | Description                                                             |
+| ---------------------------: | ------------------------------------------------------------------------|
+| skip_gw                      | If true, skip the call to CyberSource                                   |
+| payment_processor_account_id | Config entry name of the merchant account to use                        |
+| external_key_as_order_id     | If true, set the payment external key as the CyberSource order id       |
+| ignore_avs                   | If true, ignore the results of AVS checking                             |
+| ignore_cvv                   | If true, ignore the results of CVN checking                             |
+| cc_first_name                | Credit card holder first name                                           |
+| cc_last_name                 | Credit card holder last name                                            |
+| cc_type                      | Credit card brand                                                       |
+| cc_expiration_month          | Credit card expiration month                                            |
+| cc_expiration_year           | Credit card expiration year                                             |
+| cc_verification_value        | CVC/CVV/CVN                                                             |
+| email                        | Purchaser email                                                         |
+| address1                     | Billing address first line                                              |
+| address2                     | Billing address second line                                             |
+| city                         | Billing address city                                                    |
+| zip                          | Billing address zip code                                                |
+| state                        | Billing address state                                                   |
+| country                      | Billing address country                                                 |
+| eci                          | Network tokenization attribute                                          |
+| payment_cryptogram           | Network tokenization attribute                                          |
+| transaction_id               | Network tokenization attribute                                          |
+| payment_instrument_name      | ApplePay tokenization attribute                                         |
+| payment_network              | ApplePay tokenization attribute                                         |
+| transaction_identifier       | ApplePay tokenization attribute                                         |
+| force_validation             | If true, trigger a non-$0 auth to validate cards not supporting $0 auth |
+| force_validation_amount      | Amount to use when force_validation is set                              |
