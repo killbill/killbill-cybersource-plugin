@@ -32,7 +32,7 @@ describe Killbill::Cybersource::PaymentPlugin do
   end
 
   let(:with_report_api) do
-    @plugin.get_report_api(@call_context.tenant_id).present?
+    @plugin.get_report_api({}, @call_context).present?
   end
 
   it 'should be able to charge a Credit Card directly and calls should be idempotent' do

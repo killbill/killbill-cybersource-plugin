@@ -257,7 +257,7 @@ module Killbill #:nodoc:
         super
 
         merchant_reference_code = options[:order_id]
-        report = get_report(merchant_reference_code, kb_transaction.created_date, options, context)
+        report = get_report_for_kb_transaction(merchant_reference_code, kb_transaction, options, context)
         return nil if report.nil? || report.empty?
 
         logger.info "Skipping gateway call for existing transaction #{kb_transaction.id}, merchant reference code #{merchant_reference_code}"
@@ -266,9 +266,20 @@ module Killbill #:nodoc:
         logger.warn "Error checking for duplicate payment: #{e.message}"
       end
 
+      def get_report_for_kb_transaction(merchant_reference_code, kb_transaction, options, context)
+        report_api = get_report_api(options, context)
+        return nil if report_api.nil?
+        # kb_transaction is a Utils::LazyEvaluator, delay evaluation as much as possible
+        get_single_transaction_report(report_api, merchant_reference_code, kb_transaction.created_date)
+      end
+
       def get_report(merchant_reference_code, date, options, context)
-        report_api = get_report_api(context.tenant_id)
-        return nil if report_api.nil? || options[:skip_gw]
+        report_api = get_report_api(options, context)
+        return nil if report_api.nil?
+        get_single_transaction_report(report_api, merchant_reference_code, date)
+      end
+
+      def get_single_transaction_report(report_api, merchant_reference_code, date)
         report_api.single_transaction_report(merchant_reference_code, date.strftime('%Y%m%d'))
       end
 
@@ -287,8 +298,9 @@ module Killbill #:nodoc:
         ::Killbill::Plugin::ActiveMerchant::Utils.normalize_property(properties, 'ignore_cvv')
       end
 
-      def get_report_api(kb_tenant_id)
-        gateway = lookup_gateway(:on_demand, kb_tenant_id)
+      def get_report_api(options, context)
+        return nil if options[:skip_gw]
+        gateway = lookup_gateway(:on_demand, context.tenant_id)
         CyberSourceOnDemand.new(gateway, logger)
       rescue
         nil
