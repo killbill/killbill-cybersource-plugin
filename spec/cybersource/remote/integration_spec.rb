@@ -43,12 +43,9 @@ describe Killbill::Cybersource::PaymentPlugin do
     Killbill::Cybersource::CybersourceTransaction.all.size.should == 0
 
     payment_response = @plugin.purchase_payment(@pm.kb_account_id, @kb_payment.id, @kb_payment.transactions[0].id, @pm.kb_payment_method_id, @amount, @currency, properties, @call_context)
-    payment_response.status.should eq(:PROCESSED), payment_response.gateway_error
-    payment_response.amount.should == @amount
-    payment_response.transaction_type.should == :PURCHASE
+    check_response(payment_response, @amount, :PURCHASE, :PROCESSED, 'Successful transaction', '100')
     payment_response.first_payment_reference_id.should_not be_nil
     payment_response.second_payment_reference_id.should_not be_nil
-    payment_response.gateway_error_code.should_not be_nil
 
     responses = Killbill::Cybersource::CybersourceResponse.all
     responses.size.should == 2
@@ -92,34 +89,26 @@ describe Killbill::Cybersource::PaymentPlugin do
     # Valid card
     properties = build_pm_properties
     payment_response = @plugin.authorize_payment(@pm.kb_account_id, @kb_payment.id, @kb_payment.transactions[0].id, @pm.kb_payment_method_id, 0, @currency, properties, @call_context)
-    payment_response.status.should eq(:PROCESSED), payment_response.gateway_error
-    payment_response.amount.should == 0
-    payment_response.transaction_type.should == :AUTHORIZE
+    check_response(payment_response, 0, :AUTHORIZE, :PROCESSED, 'Successful transaction', '100')
     payment_response.first_payment_reference_id.should_not be_nil
     payment_response.second_payment_reference_id.should_not be_nil
-    payment_response.gateway_error_code.should_not be_nil
 
     # Note that you won't be able to void the $0 auth
     payment_response = @plugin.void_payment(@pm.kb_account_id, @kb_payment.id, @kb_payment.transactions[1].id, @pm.kb_payment_method_id, @properties, @call_context)
-    payment_response.status.should eq(:ERROR), payment_response.gateway_error
-    payment_response.transaction_type.should == :VOID
+    check_response(payment_response, nil, :VOID, :CANCELED, 'One or more fields contains invalid data', '102')
 
     # Invalid card
     # See http://www.cybersource.com/developers/getting_started/test_and_manage/simple_order_api/HTML/General_testing_info/soapi_general_test.html
     properties = build_pm_properties(nil, { :cc_exp_year => 1998 })
     payment_response = @plugin.authorize_payment(@pm.kb_account_id, @kb_payment.id, @kb_payment.transactions[0].id, @pm.kb_payment_method_id, 0, @currency, properties, @call_context)
-    payment_response.status.should eq(:ERROR), payment_response.gateway_error
-    payment_response.amount.should be_nil
-    payment_response.transaction_type.should == :AUTHORIZE
+    check_response(payment_response, nil, :AUTHORIZE, :ERROR, 'Expired card', '202')
     payment_response.first_payment_reference_id.should_not be_nil
     payment_response.second_payment_reference_id.should be_nil
-    payment_response.gateway_error.should == 'Expired card'
-    payment_response.gateway_error_code.should == '202'
   end
 
   it 'should be able to fix UNDEFINED payments' do
     payment_response = @plugin.purchase_payment(@pm.kb_account_id, @kb_payment.id, @kb_payment.transactions[0].id, @pm.kb_payment_method_id, @amount, @currency, @properties, @call_context)
-    payment_response.status.should eq(:PROCESSED), payment_response.gateway_error
+    check_response(payment_response, @amount, :PURCHASE, :PROCESSED, 'Successful transaction', '100')
 
     # Force a transition to :UNDEFINED
     Killbill::Cybersource::CybersourceTransaction.last.delete
@@ -178,71 +167,51 @@ describe Killbill::Cybersource::PaymentPlugin do
 
   it 'should be able to charge and refund' do
     payment_response = @plugin.purchase_payment(@pm.kb_account_id, @kb_payment.id, @kb_payment.transactions[0].id, @pm.kb_payment_method_id, @amount, @currency, @properties, @call_context)
-    payment_response.status.should eq(:PROCESSED), payment_response.gateway_error
-    payment_response.amount.should == @amount
-    payment_response.transaction_type.should == :PURCHASE
+    check_response(payment_response, @amount, :PURCHASE, :PROCESSED, 'Successful transaction', '100')
 
     # Try a full refund
     refund_response = @plugin.refund_payment(@pm.kb_account_id, @kb_payment.id, @kb_payment.transactions[1].id, @pm.kb_payment_method_id, @amount, @currency, @properties, @call_context)
-    refund_response.status.should eq(:PROCESSED), refund_response.gateway_error
-    refund_response.amount.should == @amount
-    refund_response.transaction_type.should == :REFUND
+    check_response(refund_response, @amount, :REFUND, :PROCESSED, 'Successful transaction', '100')
   end
 
   it 'should be able to auth, capture and refund' do
     payment_response = @plugin.authorize_payment(@pm.kb_account_id, @kb_payment.id, @kb_payment.transactions[0].id, @pm.kb_payment_method_id, @amount, @currency, @properties, @call_context)
-    payment_response.status.should eq(:PROCESSED), payment_response.gateway_error
-    payment_response.amount.should == @amount
-    payment_response.transaction_type.should == :AUTHORIZE
+    check_response(payment_response, @amount, :AUTHORIZE, :PROCESSED, 'Successful transaction', '100')
 
     # Try multiple partial captures
     partial_capture_amount = BigDecimal.new('10')
     1.upto(3) do |i|
       payment_response = @plugin.capture_payment(@pm.kb_account_id, @kb_payment.id, @kb_payment.transactions[i].id, @pm.kb_payment_method_id, partial_capture_amount, @currency, @properties, @call_context)
-      payment_response.status.should eq(:PROCESSED), payment_response.gateway_error
-      payment_response.amount.should == partial_capture_amount
-      payment_response.transaction_type.should == :CAPTURE
+      check_response(payment_response, partial_capture_amount, :CAPTURE, :PROCESSED, 'Successful transaction', '100')
     end
 
     # Try a partial refund
     refund_response = @plugin.refund_payment(@pm.kb_account_id, @kb_payment.id, @kb_payment.transactions[4].id, @pm.kb_payment_method_id, partial_capture_amount, @currency, @properties, @call_context)
-    refund_response.status.should eq(:PROCESSED), refund_response.gateway_error
-    refund_response.amount.should == partial_capture_amount
-    refund_response.transaction_type.should == :REFUND
+    check_response(refund_response, partial_capture_amount, :REFUND, :PROCESSED, 'Successful transaction', '100')
 
     # Try to capture again
     payment_response = @plugin.capture_payment(@pm.kb_account_id, @kb_payment.id, @kb_payment.transactions[5].id, @pm.kb_payment_method_id, partial_capture_amount, @currency, @properties, @call_context)
-    payment_response.status.should eq(:PROCESSED), payment_response.gateway_error
-    payment_response.amount.should == partial_capture_amount
-    payment_response.transaction_type.should == :CAPTURE
+    check_response(payment_response, partial_capture_amount, :CAPTURE, :PROCESSED, 'Successful transaction', '100')
   end
 
   it 'should be able to auth and void' do
     payment_response = @plugin.authorize_payment(@pm.kb_account_id, @kb_payment.id, @kb_payment.transactions[0].id, @pm.kb_payment_method_id, @amount, @currency, @properties, @call_context)
-    payment_response.status.should eq(:PROCESSED), payment_response.gateway_error
-    payment_response.amount.should == @amount
-    payment_response.transaction_type.should == :AUTHORIZE
+    check_response(payment_response, @amount, :AUTHORIZE, :PROCESSED, 'Successful transaction', '100')
 
     payment_response = @plugin.void_payment(@pm.kb_account_id, @kb_payment.id, @kb_payment.transactions[1].id, @pm.kb_payment_method_id, @properties, @call_context)
-    payment_response.status.should eq(:PROCESSED), payment_response.gateway_error
-    payment_response.transaction_type.should == :VOID
+    check_response(payment_response, nil, :VOID, :PROCESSED, 'Successful transaction', '100')
   end
 
   it 'should be able to auth, partial capture and void' do
     payment_response = @plugin.authorize_payment(@pm.kb_account_id, @kb_payment.id, @kb_payment.transactions[0].id, @pm.kb_payment_method_id, @amount, @currency, @properties, @call_context)
-    payment_response.status.should eq(:PROCESSED), payment_response.gateway_error
-    payment_response.amount.should == @amount
-    payment_response.transaction_type.should == :AUTHORIZE
+    check_response(payment_response, @amount, :AUTHORIZE, :PROCESSED, 'Successful transaction', '100')
 
     partial_capture_amount = BigDecimal.new('10')
     payment_response       = @plugin.capture_payment(@pm.kb_account_id, @kb_payment.id, @kb_payment.transactions[1].id, @pm.kb_payment_method_id, partial_capture_amount, @currency, @properties, @call_context)
-    payment_response.status.should eq(:PROCESSED), payment_response.gateway_error
-    payment_response.amount.should == partial_capture_amount
-    payment_response.transaction_type.should == :CAPTURE
+    check_response(payment_response, partial_capture_amount, :CAPTURE, :PROCESSED, 'Successful transaction', '100')
 
     payment_response = @plugin.void_payment(@pm.kb_account_id, @kb_payment.id, @kb_payment.transactions[2].id, @pm.kb_payment_method_id, @properties, @call_context)
-    payment_response.status.should eq(:PROCESSED), payment_response.gateway_error
-    payment_response.transaction_type.should == :VOID
+    check_response(payment_response, nil, :VOID, :PROCESSED, 'Successful transaction', '100')
     Killbill::Cybersource::CybersourceResponse.last.params_amount.should == '10.00'
 
     # From the CyberSource documentation:
@@ -250,16 +219,13 @@ describe Killbill::Cybersource::PaymentPlugin do
     # your processor supports authorization reversal after void as described in "Authorization Reversal After Void," page 39, CyberSource recommends that you request an authorization reversal
     # to release the hold on the unused credit card funds.
     payment_response = @plugin.void_payment(@pm.kb_account_id, @kb_payment.id, @kb_payment.transactions[3].id, @pm.kb_payment_method_id, @properties, @call_context)
-    payment_response.status.should eq(:PROCESSED), payment_response.gateway_error
-    payment_response.transaction_type.should == :VOID
+    check_response(payment_response, nil, :VOID, :PROCESSED, 'Successful transaction', '100')
     Killbill::Cybersource::CybersourceResponse.last.params_amount.should == '100.00'
   end
 
   it 'should be able to credit' do
     payment_response = @plugin.credit_payment(@pm.kb_account_id, @kb_payment.id, @kb_payment.transactions[0].id, @pm.kb_payment_method_id, @amount, @currency, @properties, @call_context)
-    payment_response.status.should eq(:PROCESSED), payment_response.gateway_error
-    payment_response.amount.should == @amount
-    payment_response.transaction_type.should == :CREDIT
+    check_response(payment_response, @amount, :CREDIT, :PROCESSED, 'Successful transaction', '100')
   end
 
   # See https://github.com/killbill/killbill-cybersource-plugin/issues/4
@@ -269,7 +235,7 @@ describe Killbill::Cybersource::PaymentPlugin do
     cc_exp_year.value = nil
 
     payment_response = @plugin.purchase_payment(@pm.kb_account_id, SecureRandom.uuid, SecureRandom.uuid, SecureRandom.uuid, @amount, @currency, properties_with_no_expiration_year, @call_context)
-    payment_response.status.should eq(:CANCELED), payment_response.gateway_error
+    check_response(payment_response, nil, :PURCHASE, :CANCELED, '{"exception_message":"soap:Client: \\nXML parse error.\\n","payment_plugin_status":"CANCELED"}', nil)
   end
 
   # See http://www.cybersource.com/developers/getting_started/test_and_manage/simple_order_api/HTML/General_testing_info/soapi_general_test.html
@@ -277,21 +243,33 @@ describe Killbill::Cybersource::PaymentPlugin do
     properties = build_pm_properties
 
     payment_response = @plugin.purchase_payment(@pm.kb_account_id, SecureRandom.uuid, SecureRandom.uuid, SecureRandom.uuid, -1, @currency, properties, @call_context)
-    payment_response.status.should eq(:CANCELED), payment_response.gateway_error
+    check_response(payment_response, nil, :PURCHASE, :CANCELED, 'One or more fields contains invalid data', '102')
 
     payment_response = @plugin.purchase_payment(@pm.kb_account_id, SecureRandom.uuid, SecureRandom.uuid, SecureRandom.uuid, 100000000000, @currency, properties, @call_context)
-    payment_response.status.should eq(:CANCELED), payment_response.gateway_error
+    check_response(payment_response, nil, :PURCHASE, :CANCELED, 'One or more fields contains invalid data', '102')
 
     bogus_properties = build_pm_properties(nil, {:cc_number => '4111111111111112'})
     payment_response = @plugin.purchase_payment(@pm.kb_account_id, SecureRandom.uuid, SecureRandom.uuid, SecureRandom.uuid, @amount, @currency, bogus_properties, @call_context)
-    payment_response.status.should eq(:ERROR), payment_response.gateway_error
+    check_response(payment_response, nil, :PURCHASE, :ERROR, 'Invalid account number', '231')
 
     bogus_properties = build_pm_properties(nil, {:cc_number => '412345678912345678914'})
     payment_response = @plugin.purchase_payment(@pm.kb_account_id, SecureRandom.uuid, SecureRandom.uuid, SecureRandom.uuid, @amount, @currency, bogus_properties, @call_context)
-    payment_response.status.should eq(:ERROR), payment_response.gateway_error
+    check_response(payment_response, nil, :PURCHASE, :ERROR, 'Invalid account number', '231')
 
     bogus_properties = build_pm_properties(nil, {:cc_exp_month => '13'})
     payment_response = @plugin.purchase_payment(@pm.kb_account_id, SecureRandom.uuid, SecureRandom.uuid, SecureRandom.uuid, @amount, @currency, bogus_properties, @call_context)
-    payment_response.status.should eq(:CANCELED), payment_response.gateway_error
+    check_response(payment_response, nil, :PURCHASE, :CANCELED, 'One or more fields contains invalid data', '102')
+  end
+
+  private
+
+  def check_response(payment_response, amount, transaction_type, expected_status, expected_error, expected_error_code)
+    payment_response.amount.should == amount
+    payment_response.transaction_type.should == transaction_type
+    payment_response.status.should eq(expected_status), payment_response.gateway_error
+
+    gw_response = Killbill::Cybersource::CybersourceResponse.last
+    gw_response.gateway_error.should == expected_error
+    gw_response.gateway_error_code.should == expected_error_code
   end
 end

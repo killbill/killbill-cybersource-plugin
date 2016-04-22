@@ -48,14 +48,34 @@ describe Killbill::Cybersource::PaymentPlugin do
 
   context 'Business Rules' do
 
+    let(:expected_successful_params) do
+      {
+          :params_merchant_reference_code => 'b0a6cf9aa07f1a8495f89c364bbd6a9a',
+          :params_request_id => '2004333231260008401927',
+          :params_decision => 'ACCEPT',
+          :params_reason_code => '100',
+          :params_request_token => 'Afvvj7Ke2Fmsbq0wHFE2sM6R4GAptYZ0jwPSA+R9PhkyhFTb0KRjoE4+ynthZrG6tMBwjAtT',
+          :params_currency => 'USD',
+          :params_amount => '1.00',
+          :params_authorization_code => '123456',
+          :params_avs_code => 'Y',
+          :params_avs_code_raw => 'Y',
+          :params_cv_code => 'M',
+          :params_authorized_date_time => '2008-01-15T21:42:03Z',
+          :params_processor_response => '00',
+          :params_reconciliation_id => 'ABCDEF',
+          :params_subscription_id => 'XXYYZZ'
+      }
+    end
+
     it 'does not ignore AVS nor CVN' do
       ::ActiveMerchant::Billing::CyberSourceGateway.any_instance.stub(:ssl_post) do |host, request_body|
         request_body.should_not match('<ignoreAVSResult>')
         request_body.should_not match('<ignoreCVResult>')
         successful_purchase_response
       end
-      purchase
-      purchase(:PROCESSED, [build_property('ignore_avs', 'false'), build_property('ignore_cvv', 'false')])
+      purchase(:PROCESSED, [], expected_successful_params)
+      purchase(:PROCESSED, [build_property('ignore_avs', 'false'), build_property('ignore_cvv', 'false')], expected_successful_params)
     end
 
     it 'ignores AVS and CVN' do
@@ -64,7 +84,7 @@ describe Killbill::Cybersource::PaymentPlugin do
         request_body.should match('<ignoreCVResult>')
         successful_purchase_response
       end
-      purchase(:PROCESSED, [build_property('ignore_avs', 'true'), build_property('ignore_cvv', 'true')])
+      purchase(:PROCESSED, [build_property('ignore_avs', 'true'), build_property('ignore_cvv', 'true')], expected_successful_params)
     end
 
     it 'ignores AVS but not CVN' do
@@ -73,8 +93,8 @@ describe Killbill::Cybersource::PaymentPlugin do
         request_body.should_not match('<ignoreCVResult>')
         successful_purchase_response
       end
-      purchase(:PROCESSED, [build_property('ignore_avs', 'true')])
-      purchase(:PROCESSED, [build_property('ignore_avs', 'true'), build_property('ignore_cvv', 'false')])
+      purchase(:PROCESSED, [build_property('ignore_avs', 'true')], expected_successful_params)
+      purchase(:PROCESSED, [build_property('ignore_avs', 'true'), build_property('ignore_cvv', 'false')], expected_successful_params)
     end
 
     it 'ignores CVN but not AVS' do
@@ -83,8 +103,8 @@ describe Killbill::Cybersource::PaymentPlugin do
         request_body.should match('<ignoreCVResult>')
         successful_purchase_response
       end
-      purchase(:PROCESSED, [build_property('ignore_cvv', 'true')])
-      purchase(:PROCESSED, [build_property('ignore_avs', 'false'), build_property('ignore_cvv', 'true')])
+      purchase(:PROCESSED, [build_property('ignore_cvv', 'true')], expected_successful_params)
+      purchase(:PROCESSED, [build_property('ignore_avs', 'false'), build_property('ignore_cvv', 'true')], expected_successful_params)
     end
   end
 
@@ -103,6 +123,13 @@ describe Killbill::Cybersource::PaymentPlugin do
     it 'handles unsuccessful authorizations as ERROR transactions' do
       ::ActiveMerchant::Billing::CyberSourceGateway.any_instance.stub(:ssl_post).and_return(unsuccessful_authorization_response)
       purchase(:ERROR).gateway_error.should == 'Invalid account number'
+    end
+
+    it 'parses correctly authorization reversal errors' do
+      ::ActiveMerchant::Billing::CyberSourceGateway.any_instance.stub(:ssl_post).and_return(unsuccessful_auth_reversal_response)
+      payment_response = purchase(:CANCELED)
+      payment_response.gateway_error.should == 'One or more fields contains invalid data'
+      payment_response.gateway_error_code.should == '102'
     end
   end
 
@@ -125,7 +152,7 @@ describe Killbill::Cybersource::PaymentPlugin do
     t.destroy! unless t.nil?
   end
 
-  def purchase(expected_status = :PROCESSED, properties = [])
+  def purchase(expected_status = :PROCESSED, properties = [], expected_params = {})
     kb_payment_id = SecureRandom.uuid
     kb_payment = @plugin.kb_apis.proxied_services[:payment_api].add_payment(kb_payment_id)
     kb_transaction_id = kb_payment.transactions[0].id
@@ -135,6 +162,12 @@ describe Killbill::Cybersource::PaymentPlugin do
 
     payment_response = @plugin.purchase_payment(SecureRandom.uuid, kb_payment_id, kb_transaction_id, SecureRandom.uuid, BigDecimal.new('100'), 'USD', properties, build_call_context)
     payment_response.status.should eq(expected_status), payment_response.gateway_error
+
+    gw_response = Killbill::Cybersource::CybersourceResponse.last
+    expected_params.each do |k, v|
+      gw_response.send(k.to_sym).should == v
+    end
+
     payment_response
   end
 
@@ -142,7 +175,7 @@ describe Killbill::Cybersource::PaymentPlugin do
     <<-XML
 <?xml version="1.0" encoding="utf-8"?><soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/">
 <soap:Header>
-<wsse:Security xmlns:wsse="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd"><wsu:Timestamp xmlns:wsu="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd" wsu:Id="Timestamp-2636690"><wsu:Created>2008-01-15T21:42:03.343Z</wsu:Created></wsu:Timestamp></wsse:Security></soap:Header><soap:Body><c:replyMessage xmlns:c="urn:schemas-cybersource-com:transaction-data-1.26"><c:merchantReferenceCode>b0a6cf9aa07f1a8495f89c364bbd6a9a</c:merchantReferenceCode><c:requestID>2004333231260008401927</c:requestID><c:decision>ACCEPT</c:decision><c:reasonCode>100</c:reasonCode><c:requestToken>Afvvj7Ke2Fmsbq0wHFE2sM6R4GAptYZ0jwPSA+R9PhkyhFTb0KRjoE4+ynthZrG6tMBwjAtT</c:requestToken><c:purchaseTotals><c:currency>USD</c:currency></c:purchaseTotals><c:ccAuthReply><c:reasonCode>100</c:reasonCode><c:amount>1.00</c:amount><c:authorizationCode>123456</c:authorizationCode><c:avsCode>Y</c:avsCode><c:avsCodeRaw>Y</c:avsCodeRaw><c:cvCode>M</c:cvCode><c:cvCodeRaw>M</c:cvCodeRaw><c:authorizedDateTime>2008-01-15T21:42:03Z</c:authorizedDateTime><c:processorResponse>00</c:processorResponse><c:authFactorCode>U</c:authFactorCode></c:ccAuthReply></c:replyMessage></soap:Body></soap:Envelope>
+<wsse:Security xmlns:wsse="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd"><wsu:Timestamp xmlns:wsu="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd" wsu:Id="Timestamp-2636690"><wsu:Created>2008-01-15T21:42:03.343Z</wsu:Created></wsu:Timestamp></wsse:Security></soap:Header><soap:Body><c:replyMessage xmlns:c="urn:schemas-cybersource-com:transaction-data-1.26"><c:merchantReferenceCode>b0a6cf9aa07f1a8495f89c364bbd6a9a</c:merchantReferenceCode><c:requestID>2004333231260008401927</c:requestID><c:decision>ACCEPT</c:decision><c:reasonCode>100</c:reasonCode><c:requestToken>Afvvj7Ke2Fmsbq0wHFE2sM6R4GAptYZ0jwPSA+R9PhkyhFTb0KRjoE4+ynthZrG6tMBwjAtT</c:requestToken><c:purchaseTotals><c:currency>USD</c:currency></c:purchaseTotals><c:ccAuthReply><c:reasonCode>100</c:reasonCode><c:amount>1.00</c:amount><c:authorizationCode>123456</c:authorizationCode><c:avsCode>Y</c:avsCode><c:avsCodeRaw>Y</c:avsCodeRaw><c:cvCode>M</c:cvCode><c:cvCodeRaw>M</c:cvCodeRaw><c:authorizedDateTime>2008-01-15T21:42:03Z</c:authorizedDateTime><c:processorResponse>00</c:processorResponse><c:reconciliationID>ABCDEF</c:reconciliationID><c:authFactorCode>U</c:authFactorCode></c:ccAuthReply><c:paySubscriptionCreateReply><c:reasonCode>100</c:reasonCode><c:subscriptionID>XXYYZZ</c:subscriptionID></c:paySubscriptionCreateReply></c:replyMessage></soap:Body></soap:Envelope>
     XML
   end
 
@@ -167,6 +200,14 @@ describe Killbill::Cybersource::PaymentPlugin do
 <?xml version="1.0" encoding="utf-8"?><soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/">
 <soap:Header>
 <wsse:Security xmlns:wsse="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd"><wsu:Timestamp xmlns:wsu="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd" wsu:Id="Timestamp-28121162"><wsu:Created>2008-01-15T21:50:41.580Z</wsu:Created></wsu:Timestamp></wsse:Security></soap:Header><soap:Body><c:replyMessage xmlns:c="urn:schemas-cybersource-com:transaction-data-1.26"><c:merchantReferenceCode>a1efca956703a2a5037178a8a28f7357</c:merchantReferenceCode><c:requestID>2004338415330008402434</c:requestID><c:decision>REJECT</c:decision><c:reasonCode>231</c:reasonCode><c:requestToken>Afvvj7KfIgU12gooCFE2/DanQIApt+G1OgTSA+R9PTnyhFTb0KRjgFY+ynyIFNdoKKAghwgx</c:requestToken><c:ccAuthReply><c:reasonCode>231</c:reasonCode></c:ccAuthReply></c:replyMessage></soap:Body></soap:Envelope>
+    XML
+  end
+
+  def unsuccessful_auth_reversal_response
+    <<-XML
+<?xml version="1.0" encoding="utf-8"?><soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/">
+<soap:Header>
+<wsse:Security xmlns:wsse="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd"><wsu:Timestamp xmlns:wsu="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd" wsu:Id="Timestamp-28121162"><wsu:Created>2008-01-15T21:50:41.580Z</wsu:Created></wsu:Timestamp></wsse:Security></soap:Header><soap:Body><c:replyMessage xmlns:c="urn:schemas-cybersource-com:transaction-data-1.26"><c:merchantReferenceCode>a1efca956703a2a5037178a8a28f7357</c:merchantReferenceCode><c:requestID>2004338415330008402434</c:requestID><c:decision>REJECT</c:decision><c:reasonCode>102</c:reasonCode><c:requestToken>Afvvj7KfIgU12gooCFE2/DanQIApt+G1OgTSA+R9PTnyhFTb0KRjgFY+ynyIFNdoKKAghwgx</c:requestToken><c:ccAuthReversalReply><c:reasonCode>102</c:reasonCode></c:ccAuthReversalReply><c:originalTransaction><c:amount>0.00</c:amount><c:reasonCode>100</c:reasonCode></c:originalTransaction></c:replyMessage></soap:Body></soap:Envelope>
     XML
   end
 end
