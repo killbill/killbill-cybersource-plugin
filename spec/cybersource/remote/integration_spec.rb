@@ -261,9 +261,151 @@ describe Killbill::Cybersource::PaymentPlugin do
     check_response(payment_response, nil, :PURCHASE, :CANCELED, 'One or more fields contains invalid data', '102')
   end
 
+  context 'Processors' do
+
+    # See http://www.cybersource.com/developers/getting_started/test_and_manage/simple_order_api/HTML/Paymentech/soapi_ptech_err.html
+    it 'handles Chase Paymentech Solutions errors' do
+      properties = build_pm_properties
+
+      %w(000 236 248 265 266 267 301 519 769 902 905 906).each do |expected_processor_response|
+        amount = 2000 + expected_processor_response.to_i
+        payment_response = @plugin.purchase_payment(@pm.kb_account_id, SecureRandom.uuid, SecureRandom.uuid, SecureRandom.uuid, amount, @currency, properties, @call_context)
+        check_response(payment_response, nil, :PURCHASE, :CANCELED, 'General failure', '150', expected_processor_response)
+      end
+
+      %w(239 241 249 833).each do |expected_processor_response|
+        amount = 2000 + expected_processor_response.to_i
+        payment_response = @plugin.purchase_payment(@pm.kb_account_id, SecureRandom.uuid, SecureRandom.uuid, SecureRandom.uuid, amount, @currency, properties, @call_context)
+        check_response(payment_response, nil, :PURCHASE, :CANCELED, 'A problem exists with your CyberSource merchant configuration', '234', expected_processor_response)
+      end
+
+      {'201' => '231',
+       '202' => '233',
+       '203' => '233',
+       # Disable most of the checks by default (test lasts for 7 minutes otherwise)
+=begin
+       '204' => '233',
+       '205' => '233',
+       '218' => '233',
+       '219' => '233',
+       '220' => '233',
+       '225' => '233',
+       '227' => '233',
+       '231' => '233',
+       '233' => '233',
+       '234' => '233',
+       '238' => '233',
+       '243' => '233',
+       '244' => '233',
+       '245' => '233',
+       '246' => '233',
+       '247' => '233',
+       '253' => '233',
+       '257' => '233',
+       '258' => '233',
+       '261' => '233',
+       '263' => '233',
+       '264' => '233',
+       '268' => '233',
+       '269' => '203',
+       '270' => '203',
+       '271' => '203',
+       '273' => '203',
+       '275' => '203',
+       '302' => '210',
+       '303' => '203',
+       '304' => '231',
+       '401' => '201',
+       '402' => '201',
+       '501' => '205',
+       '502' => '205',
+       '503' => '209',
+       '505' => '203',
+       '508' => '203',
+       '509' => '204',
+       '510' => '203',
+       '521' => '204',
+       '522' => '202',
+       '523' => '233',
+       '524' => '211',
+       '530' => '203',
+       '531' => '211',
+       '540' => '203',
+       '541' => '205',
+       '542' => '203',
+       '543' => '203',
+       '544' => '203',
+       '545' => '203',
+       '546' => '203',
+       '547' => '233',
+       '548' => '233',
+       '549' => '203',
+       '550' => '203',
+       '551' => '233',
+       '560' => '203',
+       '561' => '203',
+       '562' => '203',
+       '563' => '203',
+       '564' => '203',
+       '567' => '203',
+       '570' => '203',
+       '571' => '203',
+       '572' => '203',
+       '591' => '231',
+       '592' => '203',
+       '594' => '203',
+       '595' => '208',
+       '596' => '205',
+       '597' => '233',
+       '602' => '233',
+       '603' => '233',
+       '605' => '233',
+       '606' => '208',
+       '607' => '233',
+       '610' => '231',
+       '617' => '203',
+       '719' => '203',
+       '740' => '233',
+       '741' => '233',
+       '742' => '233',
+       '747' => '233',
+       '750' => '233',
+       '751' => '233',
+       '752' => '233',
+       '753' => '233',
+       '754' => '233',
+       '755' => '233',
+       '756' => '233',
+       '757' => '233',
+       '758' => '233',
+       '759' => '233',
+       '760' => '233',
+       '763' => '233',
+       '764' => '233',
+       '765' => '233',
+       '766' => '233',
+       '767' => '233',
+       '768' => '233',
+       '802' => '203',
+       '806' => '203',
+=end
+       '811' => '209',
+       '813' => '203',
+       '825' => '231',
+       '834' => '203',
+       '903' => '203',
+       '904' => '203'}.each do |expected_processor_response, expected_reason_code|
+        amount = 2000 + expected_processor_response.to_i
+        payment_response = @plugin.purchase_payment(@pm.kb_account_id, SecureRandom.uuid, SecureRandom.uuid, SecureRandom.uuid, amount, @currency, properties, @call_context)
+        expected_error = ::ActiveMerchant::Billing::CyberSourceGateway.class_variable_get(:@@response_codes)[('r' + expected_reason_code).to_sym]
+        check_response(payment_response, nil, :PURCHASE, :ERROR, expected_error, expected_reason_code, expected_processor_response)
+      end
+    end
+  end
+
   private
 
-  def check_response(payment_response, amount, transaction_type, expected_status, expected_error, expected_error_code)
+  def check_response(payment_response, amount, transaction_type, expected_status, expected_error, expected_error_code, expected_processor_response = nil)
     payment_response.amount.should == amount
     payment_response.transaction_type.should == transaction_type
     payment_response.status.should eq(expected_status), payment_response.gateway_error
@@ -271,5 +413,6 @@ describe Killbill::Cybersource::PaymentPlugin do
     gw_response = Killbill::Cybersource::CybersourceResponse.last
     gw_response.gateway_error.should == expected_error
     gw_response.gateway_error_code.should == expected_error_code
+    gw_response.params_processor_response.should == expected_processor_response unless expected_processor_response.nil?
   end
 end
