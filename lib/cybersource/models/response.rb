@@ -6,6 +6,9 @@ module Killbill #:nodoc:
 
       has_one :cybersource_transaction
 
+      UNDEFINED_ERROR_CODES = [ 151, 152, 250 ]
+      CANCELED_ERROR_CODES = [ 101, 102, 104, 150, 207, 234, 235, 236, 237, 238, 239, 240, 241, 243, 246, 247, 254 ]
+
       def self.from_response(api_call, kb_account_id, kb_payment_id, kb_payment_transaction_id, transaction_type, payment_processor_account_id, kb_tenant_id, response, extra_params = {}, model = ::Killbill::Cybersource::CybersourceResponse)
         super(api_call,
               kb_account_id,
@@ -98,7 +101,22 @@ module Killbill #:nodoc:
 
         t_info_plugin.properties << create_plugin_property('cybersourceResponseId', id)
 
+        set_correct_status(t_info_plugin)
+
         t_info_plugin
+      end
+
+      def set_correct_status(t_info_plugin)
+        # Respect the existing status if the payment was successful, if overridden or if there is no error code
+        return if success || message.strip.start_with?('{') || gateway_error_code.blank?
+
+        if CANCELED_ERROR_CODES.include?(gateway_error_code.to_i)
+          t_info_plugin.status = :CANCELED
+        elsif UNDEFINED_ERROR_CODES.include?(gateway_error_code.to_i)
+          t_info_plugin.status = :UNDEFINED
+        else
+          t_info_plugin.status = :ERROR
+        end
       end
     end
   end

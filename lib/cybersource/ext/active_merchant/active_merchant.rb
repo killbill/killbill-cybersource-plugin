@@ -5,6 +5,14 @@ module ActiveMerchant
 
     class CyberSourceGateway
 
+      def initialize(options = {})
+        super
+
+        # Add missing response codes
+        @@response_codes[:r104] = 'The merchant reference code for this authorization request matches the merchant reference code of another authorization request that you sent within the past 15 minutes.'
+        @@response_codes[:r110] = 'Only a partial amount was approved'
+      end
+
       # Add support for CreditCard objects
       def build_credit_request(money, creditcard_or_reference, options)
         xml = Builder::XmlMarkup.new :indent => 2

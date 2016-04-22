@@ -263,12 +263,35 @@ describe Killbill::Cybersource::PaymentPlugin do
   end
 
   # See https://github.com/killbill/killbill-cybersource-plugin/issues/4
-  it 'handles errors gracefully' do
+  it 'handles 500 errors gracefully' do
     properties_with_no_expiration_year = build_pm_properties
     cc_exp_year = properties_with_no_expiration_year.find { |prop| prop.key == 'ccExpirationYear' }
     cc_exp_year.value = nil
 
-    payment_response = @plugin.purchase_payment(@pm.kb_account_id, @kb_payment.id, @kb_payment.transactions[0].id, SecureRandom.uuid, @amount, @currency, properties_with_no_expiration_year, @call_context)
+    payment_response = @plugin.purchase_payment(@pm.kb_account_id, SecureRandom.uuid, SecureRandom.uuid, SecureRandom.uuid, @amount, @currency, properties_with_no_expiration_year, @call_context)
+    payment_response.status.should eq(:CANCELED), payment_response.gateway_error
+  end
+
+  # See http://www.cybersource.com/developers/getting_started/test_and_manage/simple_order_api/HTML/General_testing_info/soapi_general_test.html
+  it 'sets the correct transaction status' do
+    properties = build_pm_properties
+
+    payment_response = @plugin.purchase_payment(@pm.kb_account_id, SecureRandom.uuid, SecureRandom.uuid, SecureRandom.uuid, -1, @currency, properties, @call_context)
+    payment_response.status.should eq(:CANCELED), payment_response.gateway_error
+
+    payment_response = @plugin.purchase_payment(@pm.kb_account_id, SecureRandom.uuid, SecureRandom.uuid, SecureRandom.uuid, 100000000000, @currency, properties, @call_context)
+    payment_response.status.should eq(:CANCELED), payment_response.gateway_error
+
+    bogus_properties = build_pm_properties(nil, {:cc_number => '4111111111111112'})
+    payment_response = @plugin.purchase_payment(@pm.kb_account_id, SecureRandom.uuid, SecureRandom.uuid, SecureRandom.uuid, @amount, @currency, bogus_properties, @call_context)
     payment_response.status.should eq(:ERROR), payment_response.gateway_error
+
+    bogus_properties = build_pm_properties(nil, {:cc_number => '412345678912345678914'})
+    payment_response = @plugin.purchase_payment(@pm.kb_account_id, SecureRandom.uuid, SecureRandom.uuid, SecureRandom.uuid, @amount, @currency, bogus_properties, @call_context)
+    payment_response.status.should eq(:ERROR), payment_response.gateway_error
+
+    bogus_properties = build_pm_properties(nil, {:cc_exp_month => '13'})
+    payment_response = @plugin.purchase_payment(@pm.kb_account_id, SecureRandom.uuid, SecureRandom.uuid, SecureRandom.uuid, @amount, @currency, bogus_properties, @call_context)
+    payment_response.status.should eq(:CANCELED), payment_response.gateway_error
   end
 end
