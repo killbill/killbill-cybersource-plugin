@@ -26,6 +26,18 @@ module ActiveMerchant
       end
 
       # Add support for commerceIndicator override
+      def add_auth_service(xml, payment_method, options)
+        if network_tokenization?(payment_method)
+          add_network_tokenization(xml, payment_method, options)
+        else
+          xml.tag! 'ccAuthService', {'run' => 'true'} do
+            # Let CyberSource figure it out otherwise (internet is the default unless tokens are used)
+            xml.tag!("commerceIndicator", options[:commerce_indicator]) unless options[:commerce_indicator].blank?
+          end
+        end
+      end
+
+      # Add support for commerceIndicator override
       def add_network_tokenization(xml, payment_method, options)
         return unless network_tokenization?(payment_method)
 

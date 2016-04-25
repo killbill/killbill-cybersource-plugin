@@ -108,9 +108,25 @@ describe Killbill::Cybersource::PaymentPlugin do
     end
   end
 
-  context 'Network tokenization' do
+  context 'Override parameters' do
 
     it 'has a default commerceIndicator' do
+      ::ActiveMerchant::Billing::CyberSourceGateway.any_instance.stub(:ssl_post) do |host, request_body|
+        request_body.should_not match('<commerceIndicator>')
+        successful_purchase_response
+      end
+      purchase_with_token(:PROCESSED, [], expected_successful_params)
+    end
+
+    it 'can override commerceIndicator for card-on-file' do
+      ::ActiveMerchant::Billing::CyberSourceGateway.any_instance.stub(:ssl_post) do |host, request_body|
+        request_body.should match('<commerceIndicator>recurring</commerceIndicator>')
+        successful_purchase_response
+      end
+      purchase_with_card(:PROCESSED, [build_property('commerce_indicator', 'recurring')], expected_successful_params)
+    end
+
+    it 'has a default commerceIndicator for Apple Pay' do
       ::ActiveMerchant::Billing::CyberSourceGateway.any_instance.stub(:ssl_post) do |host, request_body|
         request_body.should_not match('<commerceIndicator>internet</commerceIndicator>')
         request_body.should match('<commerceIndicator>vbv</commerceIndicator>')
@@ -119,7 +135,7 @@ describe Killbill::Cybersource::PaymentPlugin do
       purchase_with_network_tokenization(:PROCESSED, [], expected_successful_params)
     end
 
-    it 'can override commerceIndicator' do
+    it 'can override commerceIndicator for Apple Pay' do
       ::ActiveMerchant::Billing::CyberSourceGateway.any_instance.stub(:ssl_post) do |host, request_body|
         request_body.should_not match('<commerceIndicator>vbv</commerceIndicator>')
         request_body.should match('<commerceIndicator>internet</commerceIndicator>')
@@ -171,6 +187,13 @@ describe Killbill::Cybersource::PaymentPlugin do
     yield t if block_given?
   ensure
     t.destroy! unless t.nil?
+  end
+
+  def purchase_with_card(expected_status = :PROCESSED, properties = [], expected_params = {})
+    properties << build_property('email', 'foo@bar.com')
+    properties << build_property('cc_number', '4111111111111111')
+
+    purchase(expected_status, properties, expected_params)
   end
 
   def purchase_with_token(expected_status = :PROCESSED, properties = [], expected_params = {})
