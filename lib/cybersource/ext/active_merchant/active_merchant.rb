@@ -70,6 +70,16 @@ module ActiveMerchant
         end
       end
 
+      # Enable business rules for Apple Pay
+      def add_business_rules_data(xml, payment_method, options)
+        prioritized_options = [options, @options]
+
+        xml.tag! 'businessRules' do
+          xml.tag!('ignoreAVSResult', 'true') if extract_option(prioritized_options, :ignore_avs)
+          xml.tag!('ignoreCVResult', 'true') if extract_option(prioritized_options, :ignore_cvv)
+        end
+      end
+
       # See https://github.com/killbill/killbill-cybersource-plugin/issues/4
       def commit(request, options)
         request = build_request(request, options)
