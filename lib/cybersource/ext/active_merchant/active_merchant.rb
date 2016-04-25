@@ -25,6 +25,39 @@ module ActiveMerchant
         xml.target!
       end
 
+      # Add support for commerceIndicator override
+      def add_network_tokenization(xml, payment_method, options)
+        return unless network_tokenization?(payment_method)
+
+        case card_brand(payment_method).to_sym
+          when :visa
+            xml.tag! 'ccAuthService', {'run' => 'true'} do
+              xml.tag!("cavv", payment_method.payment_cryptogram)
+              xml.tag!("commerceIndicator", options[:commerce_indicator] || "vbv")
+              xml.tag!("xid", payment_method.payment_cryptogram)
+            end
+          when :mastercard
+            xml.tag! 'ucaf' do
+              xml.tag!("authenticationData", payment_method.payment_cryptogram)
+              xml.tag!("collectionIndicator", "2")
+            end
+            xml.tag! 'ccAuthService', {'run' => 'true'} do
+              xml.tag!("commerceIndicator", options[:commerce_indicator] || "spa")
+            end
+          when :american_express
+            cryptogram = Base64.decode64(payment_method.payment_cryptogram)
+            xml.tag! 'ccAuthService', {'run' => 'true'} do
+              xml.tag!("cavv", Base64.encode64(cryptogram[0...20]))
+              xml.tag!("commerceIndicator", options[:commerce_indicator] || "aesk")
+              xml.tag!("xid", Base64.encode64(cryptogram[20...40]))
+            end
+        end
+
+        xml.tag! 'paymentNetworkToken' do
+          xml.tag!('transactionType', "1")
+        end
+      end
+
       # See https://github.com/killbill/killbill-cybersource-plugin/issues/4
       def commit(request, options)
         request = build_request(request, options)

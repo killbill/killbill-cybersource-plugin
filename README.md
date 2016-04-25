@@ -150,6 +150,7 @@ Plugin properties
 | zip                          | Billing address zip code                                                |
 | state                        | Billing address state                                                   |
 | country                      | Billing address country                                                 |
+| commerce_indicator           | Override the commerce indicator field                                   |
 | eci                          | Network tokenization attribute                                          |
 | payment_cryptogram           | Network tokenization attribute                                          |
 | transaction_id               | Network tokenization attribute                                          |

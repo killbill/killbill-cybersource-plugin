@@ -24,6 +24,26 @@ describe Killbill::Cybersource::PaymentPlugin do
     end
   end
 
+  let(:expected_successful_params) do
+    {
+        :params_merchant_reference_code => 'b0a6cf9aa07f1a8495f89c364bbd6a9a',
+        :params_request_id => '2004333231260008401927',
+        :params_decision => 'ACCEPT',
+        :params_reason_code => '100',
+        :params_request_token => 'Afvvj7Ke2Fmsbq0wHFE2sM6R4GAptYZ0jwPSA+R9PhkyhFTb0KRjoE4+ynthZrG6tMBwjAtT',
+        :params_currency => 'USD',
+        :params_amount => '1.00',
+        :params_authorization_code => '123456',
+        :params_avs_code => 'Y',
+        :params_avs_code_raw => 'Y',
+        :params_cv_code => 'M',
+        :params_authorized_date_time => '2008-01-15T21:42:03Z',
+        :params_processor_response => '00',
+        :params_reconciliation_id => 'ABCDEF',
+        :params_subscription_id => 'XXYYZZ'
+    }
+  end
+
   it 'should start and stop correctly' do
     @plugin.stop_plugin
   end
@@ -48,34 +68,14 @@ describe Killbill::Cybersource::PaymentPlugin do
 
   context 'Business Rules' do
 
-    let(:expected_successful_params) do
-      {
-          :params_merchant_reference_code => 'b0a6cf9aa07f1a8495f89c364bbd6a9a',
-          :params_request_id => '2004333231260008401927',
-          :params_decision => 'ACCEPT',
-          :params_reason_code => '100',
-          :params_request_token => 'Afvvj7Ke2Fmsbq0wHFE2sM6R4GAptYZ0jwPSA+R9PhkyhFTb0KRjoE4+ynthZrG6tMBwjAtT',
-          :params_currency => 'USD',
-          :params_amount => '1.00',
-          :params_authorization_code => '123456',
-          :params_avs_code => 'Y',
-          :params_avs_code_raw => 'Y',
-          :params_cv_code => 'M',
-          :params_authorized_date_time => '2008-01-15T21:42:03Z',
-          :params_processor_response => '00',
-          :params_reconciliation_id => 'ABCDEF',
-          :params_subscription_id => 'XXYYZZ'
-      }
-    end
-
     it 'does not ignore AVS nor CVN' do
       ::ActiveMerchant::Billing::CyberSourceGateway.any_instance.stub(:ssl_post) do |host, request_body|
         request_body.should_not match('<ignoreAVSResult>')
         request_body.should_not match('<ignoreCVResult>')
         successful_purchase_response
       end
-      purchase(:PROCESSED, [], expected_successful_params)
-      purchase(:PROCESSED, [build_property('ignore_avs', 'false'), build_property('ignore_cvv', 'false')], expected_successful_params)
+      purchase_with_token(:PROCESSED, [], expected_successful_params)
+      purchase_with_token(:PROCESSED, [build_property('ignore_avs', 'false'), build_property('ignore_cvv', 'false')], expected_successful_params)
     end
 
     it 'ignores AVS and CVN' do
@@ -84,7 +84,7 @@ describe Killbill::Cybersource::PaymentPlugin do
         request_body.should match('<ignoreCVResult>')
         successful_purchase_response
       end
-      purchase(:PROCESSED, [build_property('ignore_avs', 'true'), build_property('ignore_cvv', 'true')], expected_successful_params)
+      purchase_with_token(:PROCESSED, [build_property('ignore_avs', 'true'), build_property('ignore_cvv', 'true')], expected_successful_params)
     end
 
     it 'ignores AVS but not CVN' do
@@ -93,8 +93,8 @@ describe Killbill::Cybersource::PaymentPlugin do
         request_body.should_not match('<ignoreCVResult>')
         successful_purchase_response
       end
-      purchase(:PROCESSED, [build_property('ignore_avs', 'true')], expected_successful_params)
-      purchase(:PROCESSED, [build_property('ignore_avs', 'true'), build_property('ignore_cvv', 'false')], expected_successful_params)
+      purchase_with_token(:PROCESSED, [build_property('ignore_avs', 'true')], expected_successful_params)
+      purchase_with_token(:PROCESSED, [build_property('ignore_avs', 'true'), build_property('ignore_cvv', 'false')], expected_successful_params)
     end
 
     it 'ignores CVN but not AVS' do
@@ -103,8 +103,29 @@ describe Killbill::Cybersource::PaymentPlugin do
         request_body.should match('<ignoreCVResult>')
         successful_purchase_response
       end
-      purchase(:PROCESSED, [build_property('ignore_cvv', 'true')], expected_successful_params)
-      purchase(:PROCESSED, [build_property('ignore_avs', 'false'), build_property('ignore_cvv', 'true')], expected_successful_params)
+      purchase_with_token(:PROCESSED, [build_property('ignore_cvv', 'true')], expected_successful_params)
+      purchase_with_token(:PROCESSED, [build_property('ignore_avs', 'false'), build_property('ignore_cvv', 'true')], expected_successful_params)
+    end
+  end
+
+  context 'Network tokenization' do
+
+    it 'has a default commerceIndicator' do
+      ::ActiveMerchant::Billing::CyberSourceGateway.any_instance.stub(:ssl_post) do |host, request_body|
+        request_body.should_not match('<commerceIndicator>internet</commerceIndicator>')
+        request_body.should match('<commerceIndicator>vbv</commerceIndicator>')
+        successful_purchase_response
+      end
+      purchase_with_network_tokenization(:PROCESSED, [], expected_successful_params)
+    end
+
+    it 'can override commerceIndicator' do
+      ::ActiveMerchant::Billing::CyberSourceGateway.any_instance.stub(:ssl_post) do |host, request_body|
+        request_body.should_not match('<commerceIndicator>vbv</commerceIndicator>')
+        request_body.should match('<commerceIndicator>internet</commerceIndicator>')
+        successful_purchase_response
+      end
+      purchase_with_network_tokenization(:PROCESSED, [build_property('commerce_indicator', 'internet')], expected_successful_params)
     end
   end
 
@@ -112,22 +133,22 @@ describe Killbill::Cybersource::PaymentPlugin do
 
     it 'handles expired passwords as CANCELED transactions' do
       ::ActiveMerchant::Billing::CyberSourceGateway.any_instance.stub(:ssl_post).and_return(password_expired_response)
-      purchase(:CANCELED).gateway_error.should == 'wsse:FailedCheck: Security Data : Merchant password has expired.'
+      purchase_with_token(:CANCELED).gateway_error.should == 'wsse:FailedCheck: Security Data : Merchant password has expired.'
     end
 
     it 'handles bad passwords as CANCELED transactions' do
       ::ActiveMerchant::Billing::CyberSourceGateway.any_instance.stub(:ssl_post).and_return(bad_password_response)
-      purchase(:CANCELED).gateway_error.should == 'wsse:FailedCheck: Security Data : UsernameToken authentication failed.'
+      purchase_with_token(:CANCELED).gateway_error.should == 'wsse:FailedCheck: Security Data : UsernameToken authentication failed.'
     end
 
     it 'handles unsuccessful authorizations as ERROR transactions' do
       ::ActiveMerchant::Billing::CyberSourceGateway.any_instance.stub(:ssl_post).and_return(unsuccessful_authorization_response)
-      purchase(:ERROR).gateway_error.should == 'Invalid account number'
+      purchase_with_token(:ERROR).gateway_error.should == 'Invalid account number'
     end
 
     it 'parses correctly authorization reversal errors' do
       ::ActiveMerchant::Billing::CyberSourceGateway.any_instance.stub(:ssl_post).and_return(unsuccessful_auth_reversal_response)
-      payment_response = purchase(:CANCELED)
+      payment_response = purchase_with_token(:CANCELED)
       payment_response.gateway_error.should == 'One or more fields contains invalid data'
       payment_response.gateway_error_code.should == '102'
     end
@@ -152,13 +173,27 @@ describe Killbill::Cybersource::PaymentPlugin do
     t.destroy! unless t.nil?
   end
 
+  def purchase_with_token(expected_status = :PROCESSED, properties = [], expected_params = {})
+    properties << build_property('email', 'foo@bar.com')
+    properties << build_property('token', '1234')
+
+    purchase(expected_status, properties, expected_params)
+  end
+
+  def purchase_with_network_tokenization(expected_status = :PROCESSED, properties = [], expected_params = {})
+    properties << build_property('email', 'foo@bar.com')
+    properties << build_property('cc_number', '4111111111111111')
+    properties << build_property('brand', 'visa')
+    properties << build_property('eci', '05')
+    properties << build_property('payment_cryptogram', '111111111100cryptogram')
+
+    purchase(expected_status, properties, expected_params)
+  end
+
   def purchase(expected_status = :PROCESSED, properties = [], expected_params = {})
     kb_payment_id = SecureRandom.uuid
     kb_payment = @plugin.kb_apis.proxied_services[:payment_api].add_payment(kb_payment_id)
     kb_transaction_id = kb_payment.transactions[0].id
-
-    properties << build_property('email', 'foo@bar.com')
-    properties << build_property('token', '1234')
 
     payment_response = @plugin.purchase_payment(SecureRandom.uuid, kb_payment_id, kb_transaction_id, SecureRandom.uuid, BigDecimal.new('100'), 'USD', properties, build_call_context)
     payment_response.status.should eq(expected_status), payment_response.gateway_error
