@@ -128,7 +128,7 @@ describe Killbill::Cybersource::PaymentPlugin do
     kb_payment_id = SecureRandom.uuid
     kb_transaction_id = SecureRandom.uuid
     payment_response = @plugin.authorize_payment(@pm.kb_account_id, kb_payment_id, kb_transaction_id, @pm.kb_payment_method_id, 0, @currency, properties, @call_context)
-    check_response(payment_response, 0, :AUTHORIZE, :PROCESSED, 'Successful transaction', '100')
+    check_response(payment_response, 1, :AUTHORIZE, :PROCESSED, 'Successful transaction', '100')
     payment_response.first_payment_reference_id.should_not be_nil
     payment_response.second_payment_reference_id.should_not be_nil
     # Verify the GET path

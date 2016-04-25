@@ -325,7 +325,6 @@ module Killbill #:nodoc:
         new_auth_response = nil
         begin
           new_auth_response = authorize_payment(kb_account_id, kb_payment_id, kb_payment_transaction_id, kb_payment_method_id, amount, currency, properties, context)
-          new_auth_response.amount = 0 # For consistency
         rescue => e
           # Note: state might be broken here (potentially two responses with the same kb_payment_transaction_id)
           @logger.warn("Unexpected exception while forcing validation for kb_payment_id='#{kb_payment_id}', kb_payment_transaction_id='#{kb_payment_transaction_id}'\n#{e.backtrace.join("\n")}")
