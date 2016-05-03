@@ -274,7 +274,7 @@ module Killbill #:nodoc:
         logger.info "Skipping gateway call for existing transaction #{kb_transaction.id}, merchant reference code #{merchant_reference_code}"
         options[:skip_gw] = true
       rescue => e
-        logger.warn "Error checking for duplicate payment: #{e.message}"
+        logger.warn "Error checking for duplicate payment for merchant_reference_code='#{merchant_reference_code}'\n#{e.backtrace.join("\n")}"
       end
 
       # Duplicate check
@@ -313,9 +313,13 @@ module Killbill #:nodoc:
 
       def get_report_api(options, context)
         return nil if options[:skip_gw]
-        gateway = lookup_gateway(:on_demand, context.tenant_id)
-        CyberSourceOnDemand.new(gateway, logger)
-      rescue
+        cybersource_config = config(context.tenant_id)[:cybersource]
+        return nil unless cybersource_config.is_a?(Array)
+        on_demand_config = cybersource_config.find { |c| c[:account_id].to_s == 'on_demand' }
+        return nil if on_demand_config.nil?
+        CyberSourceOnDemand.new(on_demand_config, logger)
+      rescue => e
+        @logger.warn("Unexpected exception while looking-up reporting API for kb_tenant_id='#{context.tenant_id}'\n#{e.backtrace.join("\n")}")
         nil
       end
 

@@ -3,17 +3,18 @@ module Killbill #:nodoc:
     # See http://apps.cybersource.com/library/documentation/dev_guides/Reporting_Developers_Guide/reporting_dg.pdf
     class CyberSourceOnDemand
 
-      @@live_url = 'https://ebc.cybersource.com/ebc/Query'
-      @@test_url = 'https://ebctest.cybersource.com/ebctest/Query'
+      # For convenience, re-use the ActiveMerchant connection code, as the configuration is global currently
+      # (see https://github.com/killbill/killbill-plugin-framework-ruby/issues/47)
+      include ActiveMerchant::PostsData
 
-      def initialize(gateway, logger)
-        @gateway = gateway
+      def initialize(config, logger)
+        @config = config
         @logger = logger
       end
 
       def single_transaction_report(merchant_reference_code, target_date)
         params = {
-            :merchantID => @gateway.config[:merchantID],
+            :merchantID => @config[:merchantID],
             :merchantReferenceNumber => merchant_reference_code,
             :targetDate => target_date,
             :type => 'transaction',
@@ -23,18 +24,31 @@ module Killbill #:nodoc:
 
         headers = {
             # Don't use symbols or it will confuse Net/HTTP
-            'Authorization' => 'Basic ' + Base64.encode64("#{@gateway.config[:username]}:#{@gateway.config[:password]}").chomp
+            'Authorization' => 'Basic ' + Base64.encode64("#{@config[:username]}:#{@config[:password]}").chomp
         }
 
         data = URI.encode_www_form(params)
-        endpoint = @gateway.test? ? @@test_url : @@live_url
 
         # Will raise ResponseError if the response code is > 300
-        CyberSourceOnDemandTransactionReport.new(@gateway.ssl_post(endpoint, data, headers), @logger)
+        CyberSourceOnDemandTransactionReport.new(ssl_post(endpoint, data, headers), @logger)
       end
 
       def check_for_duplicates?
-        @gateway.config[:check_for_duplicates] == true
+        @config[:check_for_duplicates] == true
+      end
+
+      private
+
+      def endpoint
+        @config[:test] == false ? live_url : test_url
+      end
+
+      def live_url
+        @config[:live_url] || 'https://ebc.cybersource.com/ebc/Query'
+      end
+
+      def test_url
+        @config[:test_url] || 'https://ebctest.cybersource.com/ebctest/Query'
       end
 
       class CyberSourceOnDemandTransactionReport
