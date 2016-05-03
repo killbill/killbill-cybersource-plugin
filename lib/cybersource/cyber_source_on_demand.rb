@@ -10,6 +10,8 @@ module Killbill #:nodoc:
       def initialize(config, logger)
         @config = config
         @logger = logger
+
+        configure_connection
       end
 
       def single_transaction_report(merchant_reference_code, target_date)
@@ -49,6 +51,25 @@ module Killbill #:nodoc:
 
       def test_url
         @config[:test_url] || 'https://ebctest.cybersource.com/ebctest/Query'
+      end
+
+      def configure_connection
+        if @config[:log_file]
+          self.wiredump_device = File.open(@config[:log_file], 'w')
+        else
+          log_method = @config[:quiet] ? :debug : :info
+          self.wiredump_device = ::Killbill::Plugin::ActiveMerchant::Utils::KBWiredumpDevice.new(@logger, log_method)
+        end
+        self.wiredump_device.sync = true
+
+        self.open_timeout = @config[:open_timeout] unless @config[:open_timeout].nil?
+        self.read_timeout = @config[:read_timeout] unless @config[:read_timeout].nil?
+        self.retry_safe = @config[:retry_safe] unless @config[:retry_safe].nil?
+        self.ssl_strict = @config[:ssl_strict] unless @config[:ssl_strict].nil?
+        self.ssl_version = @config[:ssl_version] unless @config[:ssl_version].nil?
+        self.max_retries = @config[:max_retries] unless @config[:max_retries].nil?
+        self.proxy_address = @config[:proxy_address] unless @config[:proxy_address].nil?
+        self.proxy_port = @config[:proxy_port] unless @config[:proxy_port].nil?
       end
 
       class CyberSourceOnDemandTransactionReport
