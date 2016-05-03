@@ -37,7 +37,9 @@ module ActiveMerchant
         end
       end
 
-      # Add support for commerceIndicator override
+      # Changes:
+      #  * Add support for commerceIndicator override
+      #  * Don't set paymentNetworkToken (needs to be set after businessRules)
       def add_network_tokenization(xml, payment_method, options)
         return unless network_tokenization?(payment_method)
 
@@ -64,19 +66,23 @@ module ActiveMerchant
               xml.tag!("xid", Base64.encode64(cryptogram[20...40]))
             end
         end
-
-        xml.tag! 'paymentNetworkToken' do
-          xml.tag!('transactionType', "1")
-        end
       end
 
-      # Enable business rules for Apple Pay
+      # Changes:
+      #  * Enable business rules for Apple Pay
+      #  * Set paymentNetworkToken if needed (a bit of a hack to do it here, but it avoids having to override too much code)
       def add_business_rules_data(xml, payment_method, options)
         prioritized_options = [options, @options]
 
         xml.tag! 'businessRules' do
           xml.tag!('ignoreAVSResult', 'true') if extract_option(prioritized_options, :ignore_avs)
           xml.tag!('ignoreCVResult', 'true') if extract_option(prioritized_options, :ignore_cvv)
+        end
+
+        if network_tokenization?(payment_method)
+          xml.tag! 'paymentNetworkToken' do
+            xml.tag!('transactionType', "1")
+          end
         end
       end
 
