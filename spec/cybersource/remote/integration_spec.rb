@@ -21,10 +21,7 @@ describe Killbill::Cybersource::PaymentPlugin do
     @amount     = BigDecimal.new('100')
     @currency   = 'USD'
 
-    kb_payment_id = SecureRandom.uuid
-    1.upto(6) do
-      @kb_payment = @plugin.kb_apis.proxied_services[:payment_api].add_payment(kb_payment_id)
-    end
+    @kb_payment = setup_kb_payment(6)
   end
 
   after(:each) do
@@ -92,19 +89,21 @@ describe Killbill::Cybersource::PaymentPlugin do
   it 'should be able to verify a Credit Card' do
     # Valid card
     properties = build_pm_properties
-    payment_response = @plugin.authorize_payment(@pm.kb_account_id, @kb_payment.id, @kb_payment.transactions[0].id, @pm.kb_payment_method_id, 0, @currency, properties, @call_context)
+    kb_payment = setup_kb_payment(2)
+    payment_response = @plugin.authorize_payment(@pm.kb_account_id, kb_payment.id, kb_payment.transactions[0].id, @pm.kb_payment_method_id, 0, @currency, properties, @call_context)
     check_response(payment_response, 0, :AUTHORIZE, :PROCESSED, 'Successful transaction', '100')
     payment_response.first_payment_reference_id.should_not be_nil
     payment_response.second_payment_reference_id.should_not be_nil
 
     # Note that you won't be able to void the $0 auth
-    payment_response = @plugin.void_payment(@pm.kb_account_id, @kb_payment.id, SecureRandom.uuid, @pm.kb_payment_method_id, @properties, @call_context)
+    payment_response = @plugin.void_payment(@pm.kb_account_id, kb_payment.id, kb_payment.transactions[1].id, @pm.kb_payment_method_id, @properties, @call_context)
     check_response(payment_response, nil, :VOID, :CANCELED, 'One or more fields contains invalid data', '102')
 
     # Invalid card
     # See http://www.cybersource.com/developers/getting_started/test_and_manage/simple_order_api/HTML/General_testing_info/soapi_general_test.html
     properties = build_pm_properties(nil, { :cc_exp_year => 1998 })
-    payment_response = @plugin.authorize_payment(@pm.kb_account_id, SecureRandom.uuid, SecureRandom.uuid, @pm.kb_payment_method_id, 0, @currency, properties, @call_context)
+    kb_payment = setup_kb_payment
+    payment_response = @plugin.authorize_payment(@pm.kb_account_id, kb_payment.id, kb_payment.transactions[0].id, @pm.kb_payment_method_id, 0, @currency, properties, @call_context)
     check_response(payment_response, nil, :AUTHORIZE, :ERROR, 'Expired card', '202')
     payment_response.first_payment_reference_id.should_not be_nil
     payment_response.second_payment_reference_id.should be_nil
@@ -112,37 +111,36 @@ describe Killbill::Cybersource::PaymentPlugin do
     # Discover card (doesn't support $0 auth on Paymentech)
     # See http://www.cybersource.com/developers/other_resources/quick_references/test_cc_numbers/
     properties = build_pm_properties(nil, { :cc_number => '6011111111111117', :cc_type => :discover })
-    kb_payment_id = SecureRandom.uuid
-    payment_response = @plugin.authorize_payment(@pm.kb_account_id, kb_payment_id, SecureRandom.uuid, @pm.kb_payment_method_id, 0, @currency, properties, @call_context)
+    kb_payment = setup_kb_payment
+    payment_response = @plugin.authorize_payment(@pm.kb_account_id, kb_payment.id, kb_payment.transactions[0].id, @pm.kb_payment_method_id, 0, @currency, properties, @call_context)
     check_response(payment_response, nil, :AUTHORIZE, :CANCELED, 'A problem exists with your CyberSource merchant configuration', '234')
     payment_response.first_payment_reference_id.should_not be_nil
     payment_response.second_payment_reference_id.should be_nil
     # Verify the GET path
-    transaction_info_plugins = @plugin.get_payment_info(@pm.kb_account_id, kb_payment_id, @properties, @call_context)
+    transaction_info_plugins = @plugin.get_payment_info(@pm.kb_account_id, kb_payment.id, @properties, @call_context)
     transaction_info_plugins.size.should == 1
     transaction_info_plugins.first.transaction_type.should eq(:AUTHORIZE)
     transaction_info_plugins.first.status.should eq(:CANCELED)
 
     # Force the validation on Discover
     properties << build_property('force_validation', 'true')
-    kb_payment_id = SecureRandom.uuid
-    kb_transaction_id = SecureRandom.uuid
-    payment_response = @plugin.authorize_payment(@pm.kb_account_id, kb_payment_id, kb_transaction_id, @pm.kb_payment_method_id, 0, @currency, properties, @call_context)
+    kb_payment = setup_kb_payment
+    payment_response = @plugin.authorize_payment(@pm.kb_account_id, kb_payment.id, kb_payment.transactions[0].id, @pm.kb_payment_method_id, 0, @currency, properties, @call_context)
     check_response(payment_response, 1, :AUTHORIZE, :PROCESSED, 'Successful transaction', '100')
     payment_response.first_payment_reference_id.should_not be_nil
     payment_response.second_payment_reference_id.should_not be_nil
     # Verify the GET path
-    transaction_info_plugins = @plugin.get_payment_info(@pm.kb_account_id, kb_payment_id, @properties, @call_context)
+    transaction_info_plugins = @plugin.get_payment_info(@pm.kb_account_id, kb_payment.id, @properties, @call_context)
     transaction_info_plugins.size.should == 3
     transaction_info_plugins[0].transaction_type.should eq(:AUTHORIZE)
     transaction_info_plugins[0].status.should eq(:CANCELED)
-    transaction_info_plugins[0].kb_transaction_payment_id.should_not eq(kb_transaction_id)
+    transaction_info_plugins[0].kb_transaction_payment_id.should_not eq(kb_payment.transactions[0].id)
     transaction_info_plugins[1].transaction_type.should eq(:AUTHORIZE)
     transaction_info_plugins[1].status.should eq(:PROCESSED)
-    transaction_info_plugins[1].kb_transaction_payment_id.should eq(kb_transaction_id)
+    transaction_info_plugins[1].kb_transaction_payment_id.should eq(kb_payment.transactions[0].id)
     transaction_info_plugins[2].transaction_type.should eq(:VOID)
     transaction_info_plugins[2].status.should eq(:PROCESSED)
-    transaction_info_plugins[2].kb_transaction_payment_id.should_not eq(kb_transaction_id)
+    transaction_info_plugins[2].kb_transaction_payment_id.should_not eq(kb_payment.transactions[0].id)
   end
 
   it 'should be able to fix UNDEFINED payments' do
@@ -273,7 +271,8 @@ describe Killbill::Cybersource::PaymentPlugin do
     cc_exp_year = properties_with_no_expiration_year.find { |prop| prop.key == 'ccExpirationYear' }
     cc_exp_year.value = nil
 
-    payment_response = @plugin.purchase_payment(@pm.kb_account_id, SecureRandom.uuid, SecureRandom.uuid, SecureRandom.uuid, @amount, @currency, properties_with_no_expiration_year, @call_context)
+    kb_payment = setup_kb_payment
+    payment_response = @plugin.purchase_payment(@pm.kb_account_id, kb_payment.id, kb_payment.transactions[0].id, SecureRandom.uuid, @amount, @currency, properties_with_no_expiration_year, @call_context)
     check_response(payment_response, nil, :PURCHASE, :CANCELED, '{"exception_message":"soap:Client: \\nXML parse error.\\n","payment_plugin_status":"CANCELED"}', nil)
   end
 
@@ -281,22 +280,27 @@ describe Killbill::Cybersource::PaymentPlugin do
   it 'sets the correct transaction status' do
     properties = build_pm_properties
 
-    payment_response = @plugin.purchase_payment(@pm.kb_account_id, SecureRandom.uuid, SecureRandom.uuid, SecureRandom.uuid, -1, @currency, properties, @call_context)
+    kb_payment = setup_kb_payment
+    payment_response = @plugin.purchase_payment(@pm.kb_account_id, kb_payment.id, kb_payment.transactions[0].id, SecureRandom.uuid, -1, @currency, properties, @call_context)
     check_response(payment_response, nil, :PURCHASE, :CANCELED, 'One or more fields contains invalid data', '102')
 
-    payment_response = @plugin.purchase_payment(@pm.kb_account_id, SecureRandom.uuid, SecureRandom.uuid, SecureRandom.uuid, 100000000000, @currency, properties, @call_context)
+    kb_payment = setup_kb_payment
+    payment_response = @plugin.purchase_payment(@pm.kb_account_id, kb_payment.id, kb_payment.transactions[0].id, SecureRandom.uuid, 100000000000, @currency, properties, @call_context)
     check_response(payment_response, nil, :PURCHASE, :CANCELED, 'One or more fields contains invalid data', '102')
 
+    kb_payment = setup_kb_payment
     bogus_properties = build_pm_properties(nil, {:cc_number => '4111111111111112'})
-    payment_response = @plugin.purchase_payment(@pm.kb_account_id, SecureRandom.uuid, SecureRandom.uuid, SecureRandom.uuid, @amount, @currency, bogus_properties, @call_context)
+    payment_response = @plugin.purchase_payment(@pm.kb_account_id, kb_payment.id, kb_payment.transactions[0].id, SecureRandom.uuid, @amount, @currency, bogus_properties, @call_context)
     check_response(payment_response, nil, :PURCHASE, :ERROR, 'Invalid account number', '231')
 
+    kb_payment = setup_kb_payment
     bogus_properties = build_pm_properties(nil, {:cc_number => '412345678912345678914'})
-    payment_response = @plugin.purchase_payment(@pm.kb_account_id, SecureRandom.uuid, SecureRandom.uuid, SecureRandom.uuid, @amount, @currency, bogus_properties, @call_context)
+    payment_response = @plugin.purchase_payment(@pm.kb_account_id, kb_payment.id, kb_payment.transactions[0].id, SecureRandom.uuid, @amount, @currency, bogus_properties, @call_context)
     check_response(payment_response, nil, :PURCHASE, :ERROR, 'Invalid account number', '231')
 
+    kb_payment = setup_kb_payment
     bogus_properties = build_pm_properties(nil, {:cc_exp_month => '13'})
-    payment_response = @plugin.purchase_payment(@pm.kb_account_id, SecureRandom.uuid, SecureRandom.uuid, SecureRandom.uuid, @amount, @currency, bogus_properties, @call_context)
+    payment_response = @plugin.purchase_payment(@pm.kb_account_id, kb_payment.id, kb_payment.transactions[0].id, SecureRandom.uuid, @amount, @currency, bogus_properties, @call_context)
     check_response(payment_response, nil, :PURCHASE, :CANCELED, 'One or more fields contains invalid data', '102')
   end
 
@@ -307,14 +311,16 @@ describe Killbill::Cybersource::PaymentPlugin do
       properties = build_pm_properties
 
       %w(000 236 248 265 266 267 301 519 769 902 905 906).each do |expected_processor_response|
+        kb_payment = setup_kb_payment
         amount = 2000 + expected_processor_response.to_i
-        payment_response = @plugin.purchase_payment(@pm.kb_account_id, SecureRandom.uuid, SecureRandom.uuid, SecureRandom.uuid, amount, @currency, properties, @call_context)
+        payment_response = @plugin.purchase_payment(@pm.kb_account_id, kb_payment.id, kb_payment.transactions[0].id, SecureRandom.uuid, amount, @currency, properties, @call_context)
         check_response(payment_response, nil, :PURCHASE, :CANCELED, 'General failure', '150', expected_processor_response)
       end
 
       %w(239 241 249 833).each do |expected_processor_response|
+        kb_payment = setup_kb_payment
         amount = 2000 + expected_processor_response.to_i
-        payment_response = @plugin.purchase_payment(@pm.kb_account_id, SecureRandom.uuid, SecureRandom.uuid, SecureRandom.uuid, amount, @currency, properties, @call_context)
+        payment_response = @plugin.purchase_payment(@pm.kb_account_id, kb_payment.id, kb_payment.transactions[0].id, SecureRandom.uuid, amount, @currency, properties, @call_context)
         check_response(payment_response, nil, :PURCHASE, :CANCELED, 'A problem exists with your CyberSource merchant configuration', '234', expected_processor_response)
       end
 
@@ -434,8 +440,9 @@ describe Killbill::Cybersource::PaymentPlugin do
        '834' => '203',
        '903' => '203',
        '904' => '203'}.each do |expected_processor_response, expected_reason_code|
+        kb_payment = setup_kb_payment
         amount = 2000 + expected_processor_response.to_i
-        payment_response = @plugin.purchase_payment(@pm.kb_account_id, SecureRandom.uuid, SecureRandom.uuid, SecureRandom.uuid, amount, @currency, properties, @call_context)
+        payment_response = @plugin.purchase_payment(@pm.kb_account_id, kb_payment.id, kb_payment.transactions[0].id, SecureRandom.uuid, amount, @currency, properties, @call_context)
         expected_error = ::ActiveMerchant::Billing::CyberSourceGateway.class_variable_get(:@@response_codes)[('r' + expected_reason_code).to_sym]
         check_response(payment_response, nil, :PURCHASE, :ERROR, expected_error, expected_reason_code, expected_processor_response)
       end
@@ -453,5 +460,13 @@ describe Killbill::Cybersource::PaymentPlugin do
     gw_response.gateway_error.should == expected_error
     gw_response.gateway_error_code.should == expected_error_code
     gw_response.params_processor_response.should == expected_processor_response unless expected_processor_response.nil?
+  end
+
+  def setup_kb_payment(nb_transactions=1, kb_payment_id=SecureRandom.uuid)
+    kb_payment = nil
+    1.upto(nb_transactions) do
+      kb_payment = @plugin.kb_apis.proxied_services[:payment_api].add_payment(kb_payment_id)
+    end
+    kb_payment
   end
 end

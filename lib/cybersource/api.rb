@@ -271,7 +271,7 @@ module Killbill #:nodoc:
         report = get_report_for_kb_transaction(merchant_reference_code, kb_transaction, options, context)
         return nil if report.nil? || report.empty?
 
-        logger.info "Skipping gateway call for existing transaction #{kb_transaction.id}, merchant reference code #{merchant_reference_code}"
+        logger.info "Skipping gateway call for existing kb_transaction_id='#{kb_transaction.id}', merchant_reference_code='#{merchant_reference_code}'"
         options[:skip_gw] = true
       rescue => e
         logger.warn "Error checking for duplicate payment for merchant_reference_code='#{merchant_reference_code}'\n#{e.backtrace.join("\n")}"
@@ -312,7 +312,7 @@ module Killbill #:nodoc:
       end
 
       def get_report_api(options, context)
-        return nil if options[:skip_gw]
+        return nil if options[:skip_gw] || options[:bypass_duplicate_check]
         cybersource_config = config(context.tenant_id)[:cybersource]
         return nil unless cybersource_config.is_a?(Array)
         on_demand_config = cybersource_config.find { |c| c[:account_id].to_s == 'on_demand' }
@@ -328,6 +328,8 @@ module Killbill #:nodoc:
         # Trigger a non-$0 auth
         new_auth_response = nil
         begin
+          # If duplicate checks are enabled, we need to bypass them (since a transaction for that merchant reference code was already attempted)
+          properties << build_property(:bypass_duplicate_check, true)
           new_auth_response = authorize_payment(kb_account_id, kb_payment_id, kb_payment_transaction_id, kb_payment_method_id, amount, currency, properties, context)
         rescue => e
           # Note: state might be broken here (potentially two responses with the same kb_payment_transaction_id)
@@ -335,8 +337,8 @@ module Killbill #:nodoc:
           return auth_response
         end
 
-        # Void it right away on success
-        if new_auth_response.status == :PROCESSED
+        # Void it right away on success (make sure we didn't skip the gateway call too)
+        if new_auth_response.status == :PROCESSED && !new_auth_response.first_payment_reference_id.blank?
           begin
             void_payment(kb_account_id, kb_payment_id, SecureRandom.uuid, kb_payment_method_id, properties, context)
           rescue => e
