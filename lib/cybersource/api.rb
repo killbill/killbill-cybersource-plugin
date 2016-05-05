@@ -339,8 +339,10 @@ module Killbill #:nodoc:
 
         # Void it right away on success (make sure we didn't skip the gateway call too)
         if new_auth_response.status == :PROCESSED && !new_auth_response.first_payment_reference_id.blank?
+          # The transaction id here is bogus, since it doesn't exist in Kill Bill
+          void_properties = merge_properties(properties, { :external_key_as_order_id => false })
           begin
-            void_payment(kb_account_id, kb_payment_id, SecureRandom.uuid, kb_payment_method_id, properties, context)
+            void_payment(kb_account_id, kb_payment_id, SecureRandom.uuid, kb_payment_method_id, void_properties, context)
           rescue => e
             @logger.warn("Unexpected exception while voiding forced validation for kb_payment_id='#{kb_payment_id}', kb_payment_transaction_id='#{kb_payment_transaction_id}': #{e.message}\n#{e.backtrace.join("\n")}")
           end
