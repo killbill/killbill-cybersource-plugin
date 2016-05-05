@@ -1,3 +1,6 @@
+4.0.4
+    Fix $1 verification when external_key_as_order_id is set
+
 4.0.3
     Add support for business rules on Apple Pay
     You can now specify commerce_indicator as a plugin property to override the commerceIndicator value
