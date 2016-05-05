@@ -274,7 +274,7 @@ module Killbill #:nodoc:
         logger.info "Skipping gateway call for existing kb_transaction_id='#{kb_transaction.id}', merchant_reference_code='#{merchant_reference_code}'"
         options[:skip_gw] = true
       rescue => e
-        logger.warn "Error checking for duplicate payment for merchant_reference_code='#{merchant_reference_code}'\n#{e.backtrace.join("\n")}"
+        logger.warn "Error checking for duplicate payment for merchant_reference_code='#{merchant_reference_code}': #{e.message}\n#{e.backtrace.join("\n")}"
       end
 
       # Duplicate check
@@ -319,7 +319,7 @@ module Killbill #:nodoc:
         return nil if on_demand_config.nil?
         CyberSourceOnDemand.new(on_demand_config, logger)
       rescue => e
-        @logger.warn("Unexpected exception while looking-up reporting API for kb_tenant_id='#{context.tenant_id}'\n#{e.backtrace.join("\n")}")
+        @logger.warn("Unexpected exception while looking-up reporting API for kb_tenant_id='#{context.tenant_id}': #{e.message}\n#{e.backtrace.join("\n")}")
         nil
       end
 
@@ -333,7 +333,7 @@ module Killbill #:nodoc:
           new_auth_response = authorize_payment(kb_account_id, kb_payment_id, kb_payment_transaction_id, kb_payment_method_id, amount, currency, properties, context)
         rescue => e
           # Note: state might be broken here (potentially two responses with the same kb_payment_transaction_id)
-          @logger.warn("Unexpected exception while forcing validation for kb_payment_id='#{kb_payment_id}', kb_payment_transaction_id='#{kb_payment_transaction_id}'\n#{e.backtrace.join("\n")}")
+          @logger.warn("Unexpected exception while forcing validation for kb_payment_id='#{kb_payment_id}', kb_payment_transaction_id='#{kb_payment_transaction_id}': #{e.message}\n#{e.backtrace.join("\n")}")
           return auth_response
         end
 
@@ -342,7 +342,7 @@ module Killbill #:nodoc:
           begin
             void_payment(kb_account_id, kb_payment_id, SecureRandom.uuid, kb_payment_method_id, properties, context)
           rescue => e
-            @logger.warn("Unexpected exception while voiding forced validation for kb_payment_id='#{kb_payment_id}', kb_payment_transaction_id='#{kb_payment_transaction_id}'\n#{e.backtrace.join("\n")}")
+            @logger.warn("Unexpected exception while voiding forced validation for kb_payment_id='#{kb_payment_id}', kb_payment_transaction_id='#{kb_payment_transaction_id}': #{e.message}\n#{e.backtrace.join("\n")}")
           end
         end
 
