@@ -1,3 +1,16 @@
+4.0.3
+    Add support for business rules on Apple Pay
+    You can now specify commerce_indicator as a plugin property to override the commerceIndicator value
+    You can now specify force_validation=true as a plugin property to trigger $1 CC validation in case
+      the processor used doesn't support $0 auth for that card
+    Disable costly duplicate checks by default when triggering a payment if the reporting API is configured
+      - Set check_for_duplicates: true in your configuration to enable them
+      - No change in the GET path (UNDEFINED transactions will be fixed if possible)
+    Fix XML parsing of responses (authorization reversal errors weren't parsed correctly)
+    Improve categorization of error codes to return the right transaction status
+    Set clientLibrary to 'Kill Bill' and clientLibraryVersion to the plugin version
+    Change cybersource_responses.message to text
+
 4.0.2
     Add support for auth reversal after voiding a capture
     Add support for ignore_avs and ignore_cvv properties
