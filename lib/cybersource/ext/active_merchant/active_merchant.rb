@@ -40,6 +40,7 @@ module ActiveMerchant
       # Changes:
       #  * Add support for commerceIndicator override
       #  * Don't set paymentNetworkToken (needs to be set after businessRules)
+      #  * Fix typo (expected brand for MasterCard is master)
       def add_network_tokenization(xml, payment_method, options)
         return unless network_tokenization?(payment_method)
 
@@ -50,7 +51,7 @@ module ActiveMerchant
               xml.tag!("commerceIndicator", options[:commerce_indicator] || "vbv")
               xml.tag!("xid", payment_method.payment_cryptogram)
             end
-          when :mastercard
+          when :master
             xml.tag! 'ucaf' do
               xml.tag!("authenticationData", payment_method.payment_cryptogram)
               xml.tag!("collectionIndicator", "2")
