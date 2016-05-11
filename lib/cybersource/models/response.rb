@@ -108,7 +108,7 @@ module Killbill #:nodoc:
 
       def set_correct_status(t_info_plugin)
         # Respect the existing status if the payment was successful, if overridden or if there is no error code
-        return if success || message.strip.start_with?('{') || gateway_error_code.blank?
+        return if success || (message && message.strip.start_with?('{'))   || gateway_error_code.blank?
 
         if CANCELED_ERROR_CODES.include?(gateway_error_code.to_i)
           t_info_plugin.status = :CANCELED
