@@ -1,3 +1,6 @@
+4.0.6
+    Fix NPE when message is null in the response
+
 4.0.5
     Fix ApplePay MasterCard implementation
 
