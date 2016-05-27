@@ -42,6 +42,27 @@ module Killbill #:nodoc:
         }
       end
 
+      def cancel
+        begin
+          error_details = JSON.parse(message)
+          original_message = nil
+        rescue
+          error_details = {}
+          original_message = message
+        end
+        error_details['original_message'] = original_message unless original_message.blank?
+        error_details['payment_plugin_status'] = 'CANCELED'
+
+        updated_attributes = {
+            :message => error_details.to_json,
+            :success => false,
+            :updated_at => Time.now.utc
+        }
+
+        # Update the response row
+        update!(updated_attributes)
+      end
+
       def update_and_create_transaction(gw_response)
         updated_attributes = {
             :message => gw_response.message,
@@ -108,7 +129,7 @@ module Killbill #:nodoc:
 
       def set_correct_status(t_info_plugin)
         # Respect the existing status if the payment was successful, if overridden or if there is no error code
-        return if success || (message && message.strip.start_with?('{'))   || gateway_error_code.blank?
+        return if success || (message && message.strip.start_with?('{')) || gateway_error_code.blank?
 
         if CANCELED_ERROR_CODES.include?(gateway_error_code.to_i)
           t_info_plugin.status = :CANCELED

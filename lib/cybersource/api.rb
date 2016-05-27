@@ -2,6 +2,7 @@ module Killbill #:nodoc:
   module Cybersource #:nodoc:
     class PaymentPlugin < ::Killbill::Plugin::ActiveMerchant::PaymentPlugin
 
+      SEVEN_DAYS_AGO = (7 * 86400)
       SIXTY_DAYS_AGO = (60 * 86400)
 
       def initialize
@@ -121,7 +122,10 @@ module Killbill #:nodoc:
           next unless transaction_info_plugin.status == :UNDEFINED
 
           cybersource_response_id = find_value_from_properties(transaction_info_plugin.properties, 'cybersourceResponseId')
-          next if cybersource_response_id.nil?
+          if cybersource_response_id.nil?
+            logger.warn("Unable to fix UNDEFINED kb_transaction_id='#{transaction_info_plugin.kb_transaction_payment_id}' (cybersource_response_id not specified)")
+            next
+          end
 
           report_date = transaction_info_plugin.created_date
           authorization = find_value_from_properties(transaction_info_plugin.properties, 'authorization')
@@ -142,23 +146,34 @@ module Killbill #:nodoc:
             report = get_report(order_id, report_date, options, context)
           end
 
-          # Report API not configured or skip_gw=true
+          # Report API not configured, connection problem or skip_gw=true
           next if report.nil?
 
-          # Report not found
-          if report.empty?
-            logger.info("Unable to fix UNDEFINED transaction #{transaction_info_plugin.kb_transaction_payment_id} (not found in CyberSource)")
+          threshold = (Killbill::Plugin::ActiveMerchant::Utils.normalized(options, :cancel_threshold) || SEVEN_DAYS_AGO).to_i
+          should_cancel_payment = (now - report_date) >= threshold
+          if report.empty? && !should_cancel_payment
+            # We'll retry later
+            logger.info("Unable to fix UNDEFINED kb_transaction_id='#{transaction_info_plugin.kb_transaction_payment_id}' (not found in CyberSource)")
             next
+          else
+            # Update our rows
+            response = CybersourceResponse.find_by(:id => cybersource_response_id)
+            if response.nil?
+              logger.warn("Unable to fix UNDEFINED kb_transaction_id='#{transaction_info_plugin.kb_transaction_payment_id}' (CyberSource response='#{cybersource_response_id}' not found)")
+              next
+            end
+
+            if should_cancel_payment
+              # At this point, it's safe to assume the payment never happened
+              logger.info("Canceling UNDEFINED kb_transaction_id='#{transaction_info_plugin.kb_transaction_payment_id}'")
+              response.cancel
+            else
+              logger.info("Fixing UNDEFINED kb_transaction_id='#{transaction_info_plugin.kb_transaction_payment_id}', success='#{report.response.success?}'")
+              response.update_and_create_transaction(report.response)
+            end
+
+            stale = true
           end
-
-          # Update our rows
-          response = CybersourceResponse.find_by(:id => cybersource_response_id)
-          next if response.nil?
-
-          logger.info("Fixing UNDEFINED transaction #{transaction_info_plugin.kb_transaction_payment_id}: success? = #{report.response.success?}")
-
-          response.update_and_create_transaction(report.response)
-          stale = true
         end
 
         # If we updated the state, re-fetch the latest data
@@ -258,8 +273,6 @@ module Killbill #:nodoc:
 
         threshold = (Killbill::Plugin::ActiveMerchant::Utils.normalized(options, :auto_credit_threshold) || SIXTY_DAYS_AGO).to_i
 
-        # we might want a 'util' function to make the conversion joda DateTime to a ruby Time object
-        now = Time.parse(@clock.get_clock.get_utc_now.to_s)
         (now - transaction.created_at) >= threshold
       end
 
@@ -292,8 +305,20 @@ module Killbill #:nodoc:
         get_single_transaction_report(report_api, merchant_reference_code, date)
       end
 
-      def get_single_transaction_report(report_api, merchant_reference_code, date)
-        report_api.single_transaction_report(merchant_reference_code, date.strftime('%Y%m%d'))
+      def get_single_transaction_report(report_api, merchant_reference_code, date, fuzzy_date=true)
+        if fuzzy_date
+          report = get_single_transaction_report(report_api, merchant_reference_code, date, false)
+          report = get_single_transaction_report(report_api, merchant_reference_code, date - 1.day, false) if report.nil? || report.empty?
+          report = get_single_transaction_report(report_api, merchant_reference_code, date + 1.day, false) if report.nil? || report.empty?
+          return report
+        end
+
+        begin
+          report_api.single_transaction_report(merchant_reference_code, date.strftime('%Y%m%d'))
+        rescue => e
+          logger.warn "Error retrieving report for merchant_reference_code='#{merchant_reference_code}', target_date='#{date}': #{e.message}\n#{e.backtrace.join("\n")}"
+          nil
+        end
       end
 
       def add_required_options(kb_account_id, properties, options, context)
@@ -363,6 +388,11 @@ module Killbill #:nodoc:
         end
 
         new_auth_response
+      end
+
+      def now
+        # We might want a 'util' function to make the conversion Joda DateTime to a Ruby Time object
+        Time.parse(@clock.get_clock.get_utc_now.to_s)
       end
     end
   end

@@ -61,7 +61,7 @@ describe Killbill::Cybersource::PaymentPlugin do
 
     with_transaction(kb_payment_id, :AUTHORIZE, 61.days.ago, context) do
       @plugin.should_credit?(kb_payment_id, context, {:disable_auto_credit => true}).should be_false
-      @plugin.should_credit?(kb_payment_id, context, {:auto_credit_threshold => 61 * 86400}).should be_false
+      @plugin.should_credit?(kb_payment_id, context, {:auto_credit_threshold => 61 * 86400 + 10}).should be_false
       @plugin.should_credit?(kb_payment_id, context).should be_true
     end
   end
@@ -167,6 +167,32 @@ describe Killbill::Cybersource::PaymentPlugin do
       payment_response = purchase_with_token(:CANCELED)
       payment_response.gateway_error.should == 'One or more fields contains invalid data'
       payment_response.gateway_error_code.should == '102'
+    end
+
+    it 'cancels UNDEFINED transactions with a JSON message' do
+      response = Killbill::Cybersource::CybersourceResponse.create(:api_call => 'authorization',
+                                                                   :message => '{"exception_message":"Timeout","payment_plugin_status":"UNDEFINED"}',
+                                                                   :created_at => Time.now,
+                                                                   :updated_at => Time.now)
+      response.cancel
+      response.message.should == '{"exception_message":"Timeout","payment_plugin_status":"CANCELED"}'
+    end
+
+    it 'cancels UNDEFINED transactions with a plain test message' do
+      response = Killbill::Cybersource::CybersourceResponse.create(:api_call => 'authorization',
+                                                                   :message => 'Internal error',
+                                                                   :created_at => Time.now,
+                                                                   :updated_at => Time.now)
+      response.cancel
+      response.message.should == '{"original_message":"Internal error","payment_plugin_status":"CANCELED"}'
+    end
+
+    it 'cancels UNDEFINED transactions with no message' do
+      response = Killbill::Cybersource::CybersourceResponse.create(:api_call => 'authorization',
+                                                                   :created_at => Time.now,
+                                                                   :updated_at => Time.now)
+      response.cancel
+      response.message.should == '{"payment_plugin_status":"CANCELED"}'
     end
   end
 

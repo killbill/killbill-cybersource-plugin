@@ -31,6 +31,8 @@ module Killbill #:nodoc:
 
         data = URI.encode_www_form(params)
 
+        @logger.info "Retrieving report for merchant_reference_code='#{merchant_reference_code}', target_date='#{target_date}', merchant_id='#{@config[:merchantID]}'"
+
         # Will raise ResponseError if the response code is > 300
         CyberSourceOnDemandTransactionReport.new(ssl_post(endpoint, data, headers), @logger)
       end
