@@ -20,6 +20,15 @@ namespace :test do
       task.pattern = './spec/*/remote/*_spec.rb'
     end
   end
+
+  namespace :ci do
+    desc 'Run RSpec CI tests'
+    RSpec::Core::RakeTask.new do |task|
+      task.name = 'spec'
+      task.pattern = './spec/**/*_spec.rb'
+      task.rspec_opts = '--tag ~ci_skip'
+    end
+  end
 end
 
 # Install tasks to package the plugin for Killbill

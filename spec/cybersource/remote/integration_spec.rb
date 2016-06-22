@@ -271,12 +271,15 @@ describe Killbill::Cybersource::PaymentPlugin do
     transaction_info_plugins.size.should == 1
     transaction_info_plugins.first.status.should eq(:UNDEFINED)
 
+    # Transition to CANCEL won't work if the reporting API isn't configured
+    break unless with_report_api
+
     # Force a transition to CANCEL
-    skip_gw = Killbill::Plugin::Model::PluginProperty.new
-    skip_gw.key = 'cancel_threshold'
-    skip_gw.value = '0'
+    cancel_threshold = Killbill::Plugin::Model::PluginProperty.new
+    cancel_threshold.key = 'cancel_threshold'
+    cancel_threshold.value = '0'
     properties_with_cancel_threshold = @properties.clone
-    properties_with_cancel_threshold << skip_gw
+    properties_with_cancel_threshold << cancel_threshold
     transaction_info_plugins = @plugin.get_payment_info(@pm.kb_account_id, @kb_payment.id, properties_with_cancel_threshold, @call_context)
     transaction_info_plugins.size.should == 1
     transaction_info_plugins.first.status.should eq(:CANCELED)
@@ -324,7 +327,7 @@ describe Killbill::Cybersource::PaymentPlugin do
     check_response(payment_response, nil, :VOID, :PROCESSED, 'Successful transaction', '100')
   end
 
-  it 'should be able to auth and void in CAD' do
+  it 'should be able to auth and void in CAD', :ci_skip => true do
     payment_response = @plugin.authorize_payment(@pm.kb_account_id, @kb_payment.id, @kb_payment.transactions[0].id, @pm.kb_payment_method_id, @amount, 'CAD', @properties, @call_context)
     check_response(payment_response, @amount, :AUTHORIZE, :PROCESSED, 'Successful transaction', '100')
 

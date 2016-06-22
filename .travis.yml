@@ -6,7 +6,7 @@ cache: bundler
 before_script:
   - bundle exec jbundle install
 
-script: 'bundle exec rake test:spec test:remote:spec'
+script: 'bundle exec rake test:ci:spec'
 
 notifications:
   email:
