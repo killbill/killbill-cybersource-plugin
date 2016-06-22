@@ -324,6 +324,14 @@ describe Killbill::Cybersource::PaymentPlugin do
     check_response(payment_response, nil, :VOID, :PROCESSED, 'Successful transaction', '100')
   end
 
+  it 'should be able to auth and void in CAD' do
+    payment_response = @plugin.authorize_payment(@pm.kb_account_id, @kb_payment.id, @kb_payment.transactions[0].id, @pm.kb_payment_method_id, @amount, 'CAD', @properties, @call_context)
+    check_response(payment_response, @amount, :AUTHORIZE, :PROCESSED, 'Successful transaction', '100')
+
+    payment_response = @plugin.void_payment(@pm.kb_account_id, @kb_payment.id, @kb_payment.transactions[1].id, @pm.kb_payment_method_id, @properties, @call_context)
+    check_response(payment_response, nil, :VOID, :PROCESSED, 'Successful transaction', '100')
+  end
+
   it 'should be able to auth, partial capture and void' do
     payment_response = @plugin.authorize_payment(@pm.kb_account_id, @kb_payment.id, @kb_payment.transactions[0].id, @pm.kb_payment_method_id, @amount, @currency, @properties, @call_context)
     check_response(payment_response, @amount, :AUTHORIZE, :PROCESSED, 'Successful transaction', '100')
