@@ -129,6 +129,30 @@ module ActiveMerchant
         xml.tag! 'clientLibrary' ,'Kill Bill'
         xml.tag! 'clientLibraryVersion', KB_PLUGIN_VERSION
         xml.tag! 'clientEnvironment' , RUBY_PLATFORM
+        add_invoice_header(xml, options) # Merchant soft descriptor
+      end
+
+      def add_invoice_header(xml, options)
+        merchant_descriptor = options[:merchant_descriptor]
+        if merchant_descriptor.present? #merchant_descriptor!=nil && !merchant_descriptor.empty?
+          is_amex = merchant_descriptor[:is_amex]
+          type    = merchant_descriptor[:transaction_type]
+          name    = merchant_descriptor[:name]
+          contact = merchant_descriptor[:contact]
+          if is_amex
+            if type != :AUTHORIZE # Amex only support capture and refund
+              xml.tag! 'invoiceHeader' do
+                xml.tag! 'amexDataTAA1', format_string(name, 40)
+                xml.tag! 'amexDataTAA2', format_string(contact, 40)
+              end
+            end
+          else
+            xml.tag! 'invoiceHeader' do
+              xml.tag! 'merchantDescriptor', format_name(name)
+              xml.tag! 'merchantDescriptorContact', format_contact(contact)
+            end
+          end
+        end
       end
 
       def parse_element(reply, node)
@@ -146,6 +170,26 @@ module ActiveMerchant
           reply[key] = node.text
         end
         return reply
+      end
+
+      def format_string(str, max_length)
+        return '' if str.nil?
+        str.first(max_length)
+      end
+
+      def format_contact(contact)
+        contact ||= ''
+        contact = contact.gsub(/\D/, '').ljust(10, '0')
+        [contact[0..2],contact[3..5],contact[6..9]].join('-')
+      end
+
+      def format_name(name)
+        name ||= ''
+        if name.index('*') != nil
+          subnames = name.split('*')
+          name = subnames[0].ljust(12)[0..11] + '*' + subnames[1]
+        end
+        name.ljust(22)[0..21]
       end
     end
   end

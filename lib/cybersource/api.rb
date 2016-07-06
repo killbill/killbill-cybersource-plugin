@@ -30,6 +30,7 @@ module Killbill #:nodoc:
         options = {}
 
         add_required_options(kb_account_id, properties, options, context)
+        add_merchant_descriptor(:AUTHORIZE, properties, options)
 
         properties = merge_properties(properties, options)
         auth_response = super(kb_account_id, kb_payment_id, kb_payment_transaction_id, kb_payment_method_id, amount, currency, properties, context)
@@ -51,6 +52,7 @@ module Killbill #:nodoc:
         options = {}
 
         add_required_options(kb_account_id, properties, options, context)
+        add_merchant_descriptor(:CAPTURE, properties, options)
 
         properties = merge_properties(properties, options)
         super(kb_account_id, kb_payment_id, kb_payment_transaction_id, kb_payment_method_id, amount, currency, properties, context)
@@ -96,6 +98,7 @@ module Killbill #:nodoc:
         options = {}
 
         add_required_options(kb_account_id, properties, options, context)
+        add_merchant_descriptor(:REFUND, properties, options)
 
         properties = merge_properties(properties, options)
         super(kb_account_id, kb_payment_id, kb_payment_transaction_id, kb_payment_method_id, amount, currency, properties, context)
@@ -276,6 +279,16 @@ module Killbill #:nodoc:
         (now - transaction.created_at) >= threshold
       end
 
+      def before_gateways(kb_transaction, last_transaction, payment_source, amount_in_cents, currency, options, context = nil)
+        # Provide necessary information for merchant descriptor
+        if options[:merchant_descriptor].present?
+          options[:merchant_descriptor][:is_amex] = (payment_source.brand == 'american_express')
+          options[:merchant_descriptor][:transaction_type] = kb_transaction.transaction_type
+        end
+
+        super
+      end
+
       # Make calls idempotent
       def before_gateway(gateway, kb_transaction, last_transaction, payment_source, amount_in_cents, currency, options, context)
         super
@@ -334,6 +347,15 @@ module Killbill #:nodoc:
 
         ::Killbill::Plugin::ActiveMerchant::Utils.normalize_property(properties, 'ignore_avs')
         ::Killbill::Plugin::ActiveMerchant::Utils.normalize_property(properties, 'ignore_cvv')
+      end
+
+      def add_merchant_descriptor(transaction_type, properties, options)
+        merchant_descriptor = find_value_from_properties(properties, 'merchant_descriptor')
+        merchant_descriptor_hash = JSON.parse(merchant_descriptor) rescue nil
+        unless merchant_descriptor_hash.nil?
+          merchant_descriptor_hash[:transaction_type] = transaction_type
+          options[:merchant_descriptor] = merchant_descriptor_hash.with_indifferent_access
+        end
       end
 
       def get_report_api(options, context)

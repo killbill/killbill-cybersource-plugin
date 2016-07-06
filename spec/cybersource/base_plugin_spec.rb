@@ -145,6 +145,32 @@ describe Killbill::Cybersource::PaymentPlugin do
     end
   end
 
+  context 'Invoice Header' do
+    it 'has no invoice header by default' do
+      ::ActiveMerchant::Billing::CyberSourceGateway.any_instance.stub(:ssl_post) do |host, request_body|
+        request_body.should_not match('<InvoiceHeader>')
+        successful_purchase_response
+      end
+      purchase_with_token(:PROCESSED, [], expected_successful_params)
+    end
+
+    it 'can provide merchant descriptor for visa' do
+      ::ActiveMerchant::Billing::CyberSourceGateway.any_instance.stub(:ssl_post) do |host, request_body|
+        request_body.should match('<invoiceHeader>\n        <merchantDescriptor>Ray Qiu               </merchantDescriptor>\n        <merchantDescriptorContact>650-888-3161</merchantDescriptorContact>\n      </invoiceHeader>')
+        successful_purchase_response
+      end
+      purchase_with_card(:PROCESSED, [build_property('merchant_descriptor', {"name"=>"Ray Qiu", "contact"=>"6508883161"}.with_indifferent_access)], expected_successful_params)
+    end
+
+    it 'can provide merchant descriptor for amex' do
+      ::ActiveMerchant::Billing::CyberSourceGateway.any_instance.stub(:ssl_post) do |host, request_body|
+        request_body.should match('<invoiceHeader>\n        <amexDataTAA1>Ray Qiu</amexDataTAA1>\n        <amexDataTAA2>6508883161</amexDataTAA2>')
+        successful_purchase_response
+      end
+      purchase_with_amex(:PROCESSED, [build_property('merchant_descriptor', {"name"=>"Ray Qiu", "contact"=>"6508883161"}.with_indifferent_access)], expected_successful_params)
+    end
+  end
+
   context 'Errors handling' do
 
     it 'handles expired passwords as CANCELED transactions' do
@@ -218,6 +244,13 @@ describe Killbill::Cybersource::PaymentPlugin do
   def purchase_with_card(expected_status = :PROCESSED, properties = [], expected_params = {})
     properties << build_property('email', 'foo@bar.com')
     properties << build_property('cc_number', '4111111111111111')
+
+    purchase(expected_status, properties, expected_params)
+  end
+
+  def purchase_with_amex(expected_status = :PROCESSED, properties = [], expected_params = {})
+    properties << build_property('email', 'foo@bar.com')
+    properties << build_property('cc_number', '378282246310005')
 
     purchase(expected_status, properties, expected_params)
   end
