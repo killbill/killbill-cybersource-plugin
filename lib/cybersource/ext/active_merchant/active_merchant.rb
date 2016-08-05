@@ -134,11 +134,14 @@ module ActiveMerchant
 
       def add_invoice_header(xml, options)
         merchant_descriptor = options[:merchant_descriptor]
-        if merchant_descriptor.present?
-          name    = merchant_descriptor[:name]
-          contact = merchant_descriptor[:contact]
-          if merchant_descriptor[:is_amex]
-            unless merchant_descriptor[:transaction_type] == :AUTHORIZE # Amex only supports capture and refund
+        if merchant_descriptor.present? &&
+           merchant_descriptor.is_a?(Hash) &&
+           !merchant_descriptor['is_amex'].nil? &&
+           !merchant_descriptor['transaction_type'].nil?
+          name    = merchant_descriptor['name']
+          contact = merchant_descriptor['contact']
+          if merchant_descriptor['is_amex']
+            unless merchant_descriptor['transaction_type'] == :AUTHORIZE # Amex only supports capture and refund
               xml.tag! 'invoiceHeader' do
                 xml.tag! 'amexDataTAA1', format_string(name, 40)
                 xml.tag! 'amexDataTAA2', format_string(contact, 40)

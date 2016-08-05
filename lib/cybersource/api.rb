@@ -281,9 +281,9 @@ module Killbill #:nodoc:
 
       def before_gateways(kb_transaction, last_transaction, payment_source, amount_in_cents, currency, options, context = nil)
         # Provide necessary information for merchant descriptor
-        if options[:merchant_descriptor].present?
+        if options[:merchant_descriptor].present? && options[:merchant_descriptor]['is_amex'].nil?
           begin
-            options[:merchant_descriptor][:is_amex] = (payment_source.brand == 'american_express')
+            options[:merchant_descriptor]['is_amex'] = (payment_source.brand == 'american_express')
           rescue
             # If can not get card type information, skip sending soft descriptors
             options.delete(:merchant_descriptor)
