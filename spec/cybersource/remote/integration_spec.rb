@@ -184,6 +184,22 @@ describe Killbill::Cybersource::PaymentPlugin do
     check_response(payment_response, @amount, :PURCHASE, :PROCESSED, 'Successful transaction', '100')
   end
 
+  it 'should be able to bypass with Android Pay' do
+    properties = build_pm_properties(nil,
+                                     {
+                                         :cc_number => 4111111111111111,
+                                         :cc_type => 'visa',
+                                         :payment_cryptogram => 'EHuWW9PiBkWvqE5juRwDzAUFBAk=',
+                                         :ignore_avs => true,
+                                         :ignore_cvv => true,
+                                         :source => android_pay
+                                     })
+    kb_payment = setup_kb_payment
+    payment_response = @plugin.authorize_payment(@pm.kb_account_id, kb_payment.id, kb_payment.transactions[0].id, @pm.kb_payment_method_id, @amount, @currency, properties, @call_context)
+    check_response(payment_response, @amount, :PURCHASE, :PROCESSED, 'Successful transaction', '100')
+
+  end
+
   it 'should be able to fix UNDEFINED payments' do
     payment_response = @plugin.purchase_payment(@pm.kb_account_id, @kb_payment.id, @kb_payment.transactions[0].id, @pm.kb_payment_method_id, @amount, @currency, @properties, @call_context)
     check_response(payment_response, @amount, :PURCHASE, :PROCESSED, 'Successful transaction', '100')

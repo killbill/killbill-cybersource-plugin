@@ -74,7 +74,7 @@ module ActiveMerchant
       #  * http://apps.cybersource.com/library/documentation/dev_guides/Android_Pay_SO_API/html/wwhelp/wwhimpl/js/html/wwhelp.htm#href=ch_soAPI.html
       #  * add paymentSolution tag to support Android Pay
       def add_payment_solution(xml, payment_method)
-        xml.tag!("paymentSolution", "006") if (!payment_method.source.nil? && payment_method.source == :android_pay)
+        xml.tag!("paymentSolution", "006") if payment_method.source == :android_pay
       end
       # Changes:
       #  * Enable business rules for Apple Pay
