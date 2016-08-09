@@ -35,6 +35,8 @@ module ActiveMerchant
             xml.tag!("commerceIndicator", options[:commerce_indicator]) unless options[:commerce_indicator].blank?
           end
         end
+        # Add support for Android Pay
+        xml.tag!("paymentSolution", @options[:payment_solution]) unless options[:payment_solution].blank?
       end
 
       # Changes:
