@@ -29,7 +29,7 @@ module ActiveMerchant
       def add_auth_service(xml, payment_method, options)
         if network_tokenization?(payment_method)
           add_network_tokenization(xml, payment_method, options)
-          add_payment_solution(xml, payment_method)
+          add_payment_solution(xml, payment_method, options)
         else
           xml.tag! 'ccAuthService', {'run' => 'true'} do
             # Let CyberSource figure it out otherwise (internet is the default unless tokens are used)
@@ -73,9 +73,10 @@ module ActiveMerchant
       # Changes:
       #  * http://apps.cybersource.com/library/documentation/dev_guides/Android_Pay_SO_API/html/wwhelp/wwhimpl/js/html/wwhelp.htm#href=ch_soAPI.html
       #  * add paymentSolution tag to support Android Pay
-      def add_payment_solution(xml, payment_method)
-        xml.tag!("paymentSolution", "006") if payment_method.source == :android_pay
+      def add_payment_solution(xml, payment_method, options)
+        xml.tag!("paymentSolution", "006") if options[:payment_method_type] == "androidpay"
       end
+
       # Changes:
       #  * Enable business rules for Apple Pay
       #  * Set paymentNetworkToken if needed (a bit of a hack to do it here, but it avoids having to override too much code)

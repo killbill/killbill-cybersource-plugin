@@ -191,8 +191,7 @@ describe Killbill::Cybersource::PaymentPlugin do
                                          :cc_type => 'visa',
                                          :payment_cryptogram => 'EHuWW9PiBkWvqE5juRwDzAUFBAk=',
                                          :ignore_avs => true,
-                                         :ignore_cvv => true,
-                                         :source => android_pay
+                                         :ignore_cvv => true
                                      })
     kb_payment = setup_kb_payment
     payment_response = @plugin.authorize_payment(@pm.kb_account_id, kb_payment.id, kb_payment.transactions[0].id, @pm.kb_payment_method_id, @amount, @currency, properties, @call_context)
