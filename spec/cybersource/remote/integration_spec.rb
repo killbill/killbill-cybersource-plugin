@@ -552,7 +552,7 @@ describe Killbill::Cybersource::PaymentPlugin do
       payment_response = @plugin.authorize_payment(@pm.kb_account_id, payment_id, SecureRandom.uuid, @pm.kb_payment_method_id, @amount, @currency, @properties, @call_context)
       check_response(payment_response, @amount, :AUTHORIZE, :PROCESSED, 'Successful transaction', '100')
 
-      # Try a captures
+      # Try a capture
       payment_response = @plugin.capture_payment(@pm.kb_account_id, payment_id, SecureRandom.uuid, @pm.kb_payment_method_id, @amount, @currency, @properties, @call_context)
       check_response(payment_response, @amount, :CAPTURE, :PROCESSED, 'Successful transaction', '100')
 

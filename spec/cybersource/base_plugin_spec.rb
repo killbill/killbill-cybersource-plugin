@@ -216,7 +216,7 @@ describe Killbill::Cybersource::PaymentPlugin do
 
   shared_examples 'full payment' do
     before do
-      send(add_payment_prpperties, txn_properties, card_type)
+      send(add_payment_properties, txn_properties, card_type)
       stub_gateway_for_invoice_header(invoice_match_status)
     end
 
@@ -261,14 +261,13 @@ describe Killbill::Cybersource::PaymentPlugin do
   end
 
   context 'Invoice Header' do
-    let(:add_payment_prpperties){ :add_card_property }
-
     context 'payments with card' do
+      let(:add_payment_properties){ :add_card_property }
       it_behaves_like 'invoice header example'
     end
 
     context 'payments with network tokenization' do
-      let(:add_payment_prpperties){ :add_network_tokenization_properties }
+      let(:add_payment_properties){ :add_network_tokenization_properties }
       it_behaves_like 'invoice header example'
     end
   end
@@ -310,13 +309,14 @@ describe Killbill::Cybersource::PaymentPlugin do
     if card_type == :amex
       properties << build_property('cc_number', '378282246310005')
       properties << build_property('brand', 'american_express')
+      properties << build_property('payment_cryptogram', Base64.encode64('111111111100cryptogram'))
     else
       properties << build_property('cc_number', '4111111111111111')
       properties << build_property('brand', 'visa')
+      properties << build_property('payment_cryptogram', '111111111100cryptogram')
     end
     properties << build_property('email', 'foo@bar.com')
     properties << build_property('eci', '05')
-    properties << build_property('payment_cryptogram', Base64.encode64('111111111100cryptogram'))
   end
 
   def purchase_with_card(expected_status = :PROCESSED, properties = [], expected_params = {})

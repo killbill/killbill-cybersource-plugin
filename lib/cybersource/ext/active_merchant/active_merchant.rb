@@ -136,11 +136,11 @@ module ActiveMerchant
         merchant_descriptor = options[:merchant_descriptor]
         if merchant_descriptor.present? &&
            merchant_descriptor.is_a?(Hash) &&
-           !merchant_descriptor['is_amex'].nil? &&
+           !merchant_descriptor['card_type'].nil? &&
            !merchant_descriptor['transaction_type'].nil?
           name    = merchant_descriptor['name']
           contact = merchant_descriptor['contact']
-          if merchant_descriptor['is_amex']
+          if merchant_descriptor['card_type'].to_s == 'american_express'
             unless merchant_descriptor['transaction_type'] == :AUTHORIZE # Amex only supports capture and refund
               xml.tag! 'invoiceHeader' do
                 xml.tag! 'amexDataTAA1', format_string(name, 40)

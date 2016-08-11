@@ -281,13 +281,12 @@ module Killbill #:nodoc:
 
       def before_gateways(kb_transaction, last_transaction, payment_source, amount_in_cents, currency, options, context = nil)
         # Provide necessary information for merchant descriptor
-        if options[:merchant_descriptor].present? && options[:merchant_descriptor]['is_amex'].nil?
-          begin
-            options[:merchant_descriptor]['is_amex'] = (payment_source.brand == 'american_express')
-          rescue
-            # If can not get card type information, skip sending soft descriptors
-            options.delete(:merchant_descriptor)
-          end
+        if options[:merchant_descriptor].present? && 
+           options[:merchant_descriptor][:card_type].nil? &&
+           payment_source.present? &&
+           payment_source.respond_to?(:brand)
+
+          options[:merchant_descriptor][:card_type] = payment_source.brand
         end
 
         super
@@ -355,11 +354,18 @@ module Killbill #:nodoc:
 
       def add_merchant_descriptor(transaction_type, properties, options)
         merchant_descriptor = find_value_from_properties(properties, 'merchant_descriptor')
+        return unless merchant_descriptor.present?
+        
         merchant_descriptor_hash = JSON.parse(merchant_descriptor) rescue nil
-        unless merchant_descriptor_hash.nil?
-          merchant_descriptor_hash[:transaction_type] = transaction_type
-          options[:merchant_descriptor] = merchant_descriptor_hash.with_indifferent_access
+        return unless merchant_descriptor_hash.present? && merchant_descriptor_hash.is_a?(Hash)
+
+        merchant_descriptor_hash = merchant_descriptor_hash.with_indifferent_access
+
+        merchant_descriptor_hash[:transaction_type] = transaction_type
+        if merchant_descriptor_hash[:card_type].nil?
+          merchant_descriptor_hash[:card_type] = find_value_from_properties(properties, 'cc_type')
         end
+        options[:merchant_descriptor] = merchant_descriptor_hash
       end
 
       def get_report_api(options, context)
