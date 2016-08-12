@@ -1,3 +1,6 @@
+4.0.8
+    Return processor response in PaymentTransactionInfoPlugin
+
 4.0.7
     Fix auth reversal in non-USD
     Cancel old UNDEFINED transactions that cannot be found in CyberSource
