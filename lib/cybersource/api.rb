@@ -281,7 +281,7 @@ module Killbill #:nodoc:
 
       def before_gateways(kb_transaction, last_transaction, payment_source, amount_in_cents, currency, options, context = nil)
         # Provide necessary information for merchant descriptor
-        if options[:merchant_descriptor].present? && 
+        if options[:merchant_descriptor].present? &&
            options[:merchant_descriptor][:card_type].nil? &&
            payment_source.present? &&
            payment_source.respond_to?(:brand)
@@ -355,7 +355,7 @@ module Killbill #:nodoc:
       def add_merchant_descriptor(transaction_type, properties, options)
         merchant_descriptor = find_value_from_properties(properties, 'merchant_descriptor')
         return unless merchant_descriptor.present?
-        
+
         merchant_descriptor_hash = JSON.parse(merchant_descriptor) rescue nil
         return unless merchant_descriptor_hash.present? && merchant_descriptor_hash.is_a?(Hash)
 
@@ -363,7 +363,7 @@ module Killbill #:nodoc:
 
         merchant_descriptor_hash[:transaction_type] = transaction_type
         if merchant_descriptor_hash[:card_type].nil?
-          merchant_descriptor_hash[:card_type] = find_value_from_properties(properties, 'cc_type')
+          merchant_descriptor_hash[:card_type] = ::Killbill::Plugin::ActiveMerchant::Utils.normalized(properties_to_hash(properties), :cc_type)
         end
         options[:merchant_descriptor] = merchant_descriptor_hash
       end
