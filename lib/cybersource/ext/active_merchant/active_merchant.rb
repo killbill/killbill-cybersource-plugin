@@ -29,6 +29,7 @@ module ActiveMerchant
       def add_auth_service(xml, payment_method, options)
         if network_tokenization?(payment_method)
           add_network_tokenization(xml, payment_method, options)
+          add_payment_solution(xml, payment_method, options)
         else
           xml.tag! 'ccAuthService', {'run' => 'true'} do
             # Let CyberSource figure it out otherwise (internet is the default unless tokens are used)
@@ -67,6 +68,13 @@ module ActiveMerchant
               xml.tag!("xid", Base64.encode64(cryptogram[20...40]))
             end
         end
+      end
+
+      # Changes:
+      #  * http://apps.cybersource.com/library/documentation/dev_guides/Android_Pay_SO_API/html/wwhelp/wwhimpl/js/html/wwhelp.htm#href=ch_soAPI.html
+      #  * add paymentSolution tag to support Android Pay
+      def add_payment_solution(xml, payment_method, options)
+        xml.tag!("paymentSolution", "006") if options[:payment_method_type] == "androidpay"
       end
 
       # Changes:
