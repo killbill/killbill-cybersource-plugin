@@ -1,5 +1,6 @@
 4.0.8
     Return processor response in PaymentTransactionInfoPlugin
+    Update jruby-openssl to 0.9.17 (see jruby/jruby-openssl#94)
 
 4.0.7
     Fix auth reversal in non-USD

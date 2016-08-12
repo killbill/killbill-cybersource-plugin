@@ -78,7 +78,7 @@ GEM
       ruby-maven (~> 3.3, >= 3.3.3)
     jdbc-mariadb (1.2.3)
     jdbc-sqlite3 (3.8.11.2)
-    jruby-openssl (0.9.16-java)
+    jruby-openssl (0.9.17-java)
     json (1.8.3-java)
     killbill (7.0.6)
       rack (>= 1.5.2)
