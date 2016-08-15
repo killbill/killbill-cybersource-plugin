@@ -29,7 +29,6 @@ module ActiveMerchant
       def add_auth_service(xml, payment_method, options)
         if network_tokenization?(payment_method)
           add_network_tokenization(xml, payment_method, options)
-          add_payment_solution(xml, payment_method, options)
         else
           xml.tag! 'ccAuthService', {'run' => 'true'} do
             # Let CyberSource figure it out otherwise (internet is the default unless tokens are used)
@@ -49,7 +48,7 @@ module ActiveMerchant
           when :visa
             xml.tag! 'ccAuthService', {'run' => 'true'} do
               xml.tag!("cavv", payment_method.payment_cryptogram)
-              xml.tag!("commerceIndicator", options[:commerce_indicator] || "vbv")
+              xml.tag!("commerceIndicator", options[:commerce_indicator] || (is_android_pay(payment_method, options) ? 'internet' : 'vbv'))
               xml.tag!("xid", payment_method.payment_cryptogram)
             end
           when :master
@@ -74,12 +73,18 @@ module ActiveMerchant
       #  * http://apps.cybersource.com/library/documentation/dev_guides/Android_Pay_SO_API/html/wwhelp/wwhimpl/js/html/wwhelp.htm#href=ch_soAPI.html
       #  * add paymentSolution tag to support Android Pay
       def add_payment_solution(xml, payment_method, options)
-        xml.tag!("paymentSolution", "006") if options[:payment_method_type] == "androidpay"
+        if is_android_pay(payment_method, options)
+          xml.tag!('paymentSolution', '006')
+        end
+      end
+
+      def is_android_pay(payment_method, options)
+        (payment_method.respond_to?(:source) && payment_method.source == :android_pay) || options[:source] == 'androidpay'
       end
 
       # Changes:
       #  * Enable business rules for Apple Pay
-      #  * Set paymentNetworkToken if needed (a bit of a hack to do it here, but it avoids having to override too much code)
+      #  * Set paymentNetworkToken and paymentSolution if needed (a bit of a hack to do it here, but it avoids having to override too much code)
       def add_business_rules_data(xml, payment_method, options)
         prioritized_options = [options, @options]
 
@@ -92,6 +97,8 @@ module ActiveMerchant
           xml.tag! 'paymentNetworkToken' do
             xml.tag!('transactionType', "1")
           end
+
+          add_payment_solution(xml, payment_method, options)
         end
       end
 

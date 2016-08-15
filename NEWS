@@ -1,4 +1,5 @@
 4.0.8
+    Add Android Pay support
     Return processor response in PaymentTransactionInfoPlugin
     Update jruby-openssl to 0.9.17 (see jruby/jruby-openssl#94)
 
