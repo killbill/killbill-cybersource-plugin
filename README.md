@@ -158,5 +158,7 @@ Plugin properties
 | payment_instrument_name      | ApplePay tokenization attribute                                         |
 | payment_network              | ApplePay tokenization attribute                                         |
 | transaction_identifier       | ApplePay tokenization attribute                                         |
+| source                       | androidpay for AndroidPay                                               |
 | force_validation             | If true, trigger a non-$0 auth to validate cards not supporting $0 auth |
 | force_validation_amount      | Amount to use when force_validation is set                              |
+| merchant_descriptor          | Merchant descriptor as `{"name":"Merchant Name","contact":"8888888888"}`|

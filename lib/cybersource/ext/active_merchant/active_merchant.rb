@@ -48,7 +48,7 @@ module ActiveMerchant
           when :visa
             xml.tag! 'ccAuthService', {'run' => 'true'} do
               xml.tag!("cavv", payment_method.payment_cryptogram)
-              xml.tag!("commerceIndicator", options[:commerce_indicator] || "vbv")
+              xml.tag!("commerceIndicator", options[:commerce_indicator] || (is_android_pay(payment_method, options) ? 'internet' : 'vbv'))
               xml.tag!("xid", payment_method.payment_cryptogram)
             end
           when :master
@@ -70,8 +70,21 @@ module ActiveMerchant
       end
 
       # Changes:
+      #  * http://apps.cybersource.com/library/documentation/dev_guides/Android_Pay_SO_API/html/wwhelp/wwhimpl/js/html/wwhelp.htm#href=ch_soAPI.html
+      #  * add paymentSolution tag to support Android Pay
+      def add_payment_solution(xml, payment_method, options)
+        if is_android_pay(payment_method, options)
+          xml.tag!('paymentSolution', '006')
+        end
+      end
+
+      def is_android_pay(payment_method, options)
+        (payment_method.respond_to?(:source) && payment_method.source == :android_pay) || options[:source] == 'androidpay'
+      end
+
+      # Changes:
       #  * Enable business rules for Apple Pay
-      #  * Set paymentNetworkToken if needed (a bit of a hack to do it here, but it avoids having to override too much code)
+      #  * Set paymentNetworkToken and paymentSolution if needed (a bit of a hack to do it here, but it avoids having to override too much code)
       def add_business_rules_data(xml, payment_method, options)
         prioritized_options = [options, @options]
 
@@ -84,6 +97,8 @@ module ActiveMerchant
           xml.tag! 'paymentNetworkToken' do
             xml.tag!('transactionType', "1")
           end
+
+          add_payment_solution(xml, payment_method, options)
         end
       end
 
@@ -129,6 +144,31 @@ module ActiveMerchant
         xml.tag! 'clientLibrary' ,'Kill Bill'
         xml.tag! 'clientLibraryVersion', KB_PLUGIN_VERSION
         xml.tag! 'clientEnvironment' , RUBY_PLATFORM
+        add_invoice_header(xml, options) # Merchant soft descriptor
+      end
+
+      def add_invoice_header(xml, options)
+        merchant_descriptor = options[:merchant_descriptor]
+        if merchant_descriptor.present? &&
+           merchant_descriptor.is_a?(Hash) &&
+           !merchant_descriptor['card_type'].nil? &&
+           !merchant_descriptor['transaction_type'].nil?
+          name    = merchant_descriptor['name']
+          contact = merchant_descriptor['contact']
+          if merchant_descriptor['card_type'].to_s == 'american_express'
+            unless merchant_descriptor['transaction_type'] == :AUTHORIZE # Amex only supports capture and refund
+              xml.tag! 'invoiceHeader' do
+                xml.tag! 'amexDataTAA1', format_string(name, 40)
+                xml.tag! 'amexDataTAA2', format_string(contact, 40)
+              end
+            end
+          else
+            xml.tag! 'invoiceHeader' do
+              xml.tag! 'merchantDescriptor', format_name(name)
+              xml.tag! 'merchantDescriptorContact', format_contact(contact)
+            end
+          end
+        end
       end
 
       def parse_element(reply, node)
@@ -146,6 +186,26 @@ module ActiveMerchant
           reply[key] = node.text
         end
         return reply
+      end
+
+      def format_string(str, max_length)
+        return '' if str.nil?
+        str.first(max_length)
+      end
+
+      def format_contact(contact)
+        contact ||= ''
+        contact = contact.gsub(/\D/, '').ljust(10, '0')
+        [contact[0..2],contact[3..5],contact[6..9]].join('-')
+      end
+
+      def format_name(name)
+        name ||= ''
+        if name.index('*') != nil
+          subnames = name.split('*')
+          name = subnames[0].ljust(12)[0..11] + '*' + subnames[1]
+        end
+        name.ljust(22)[0..21]
       end
     end
   end

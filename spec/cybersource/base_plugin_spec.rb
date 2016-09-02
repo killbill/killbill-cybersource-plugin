@@ -196,6 +196,82 @@ describe Killbill::Cybersource::PaymentPlugin do
     end
   end
 
+  def stub_gateway_for_invoice_header(invoice_match_status)
+    ::ActiveMerchant::Billing::CyberSourceGateway.any_instance.stub(:ssl_post) do |host, request_body|
+      case(invoice_match_status)
+      when :none
+        request_body.should_not match('<invoiceHeader>')
+      when :all
+        request_body.should match('<invoiceHeader>\n        <merchantDescriptor>Ray Qiu               </merchantDescriptor>\n        <merchantDescriptorContact>650-888-3161</merchantDescriptorContact>\n      </invoiceHeader>')
+      when :except_authorize
+        if request_body.index('ccAuthService').present?
+          request_body.should_not match('<invoiceHeader>\n        <amexDataTAA1>Ray Qiu</amexDataTAA1>\n        <amexDataTAA2>6508883161</amexDataTAA2>')
+        else
+          request_body.should match('<invoiceHeader>\n        <amexDataTAA1>Ray Qiu</amexDataTAA1>\n        <amexDataTAA2>6508883161</amexDataTAA2>')
+        end
+      end
+      successful_purchase_response
+    end
+  end
+
+  shared_examples 'full payment' do
+    before do
+      send(add_payment_properties, txn_properties, card_type)
+      stub_gateway_for_invoice_header(invoice_match_status)
+    end
+
+    it 'should met expectations' do
+      auth_responses = create_transaction(card_type, :authorize, nil, :PROCESSED, txn_properties, expected_successful_params)
+      capture_responses = create_transaction(card_type, :capture, auth_responses, :PROCESSED, txn_properties, expected_successful_params)
+      create_transaction(card_type, :refund, capture_responses, :PROCESSED, txn_properties, expected_successful_params)
+    end
+  end
+
+  shared_examples 'invoice header example' do
+    let(:card_type){ :visa }
+    let(:txn_properties){ [] }
+
+    context 'while no descriptor provided' do
+      let(:invoice_match_status){ :none }
+
+      context 'visa' do
+        it_behaves_like 'full payment'
+      end
+
+      context 'amex' do
+        let(:card_type){ :amex }
+        it_behaves_like 'full payment'
+      end
+    end
+
+    context 'while descriptor provided' do
+      before{ txn_properties << build_property('merchant_descriptor', {"name"=>"Ray Qiu", "contact"=>"6508883161"}.to_json) }
+
+      context 'visa' do
+        let(:invoice_match_status){ :all }
+        it_behaves_like 'full payment'
+      end
+
+      context 'amex' do
+        let(:card_type){ :amex }
+        let(:invoice_match_status){ :except_authorize }
+        it_behaves_like 'full payment'
+      end
+    end
+  end
+
+  context 'Invoice Header' do
+    context 'payments with card' do
+      let(:add_payment_properties){ :add_card_property }
+      it_behaves_like 'invoice header example'
+    end
+
+    context 'payments with network tokenization' do
+      let(:add_payment_properties){ :add_network_tokenization_properties }
+      it_behaves_like 'invoice header example'
+    end
+  end
+
   private
 
   def with_transaction(kb_payment_id, transaction_type, created_at, context)
@@ -215,28 +291,89 @@ describe Killbill::Cybersource::PaymentPlugin do
     t.destroy! unless t.nil?
   end
 
-  def purchase_with_card(expected_status = :PROCESSED, properties = [], expected_params = {})
+  def add_card_property(properties, card_type = :visa)
     properties << build_property('email', 'foo@bar.com')
-    properties << build_property('cc_number', '4111111111111111')
+    if card_type == :amex
+      properties << build_property('cc_number', '378282246310005')
+    else
+      properties << build_property('cc_number', '4111111111111111')
+    end
+  end
 
+  def add_token_property(properties)
+    properties << build_property('email', 'foo@bar.com')
+    properties << build_property('token', '1234')
+  end
+
+  def add_network_tokenization_properties(properties, card_type = :visa)
+    if card_type == :amex
+      properties << build_property('cc_number', '378282246310005')
+      properties << build_property('brand', 'american_express')
+      properties << build_property('payment_cryptogram', Base64.encode64('111111111100cryptogram'))
+    else
+      properties << build_property('cc_number', '4111111111111111')
+      properties << build_property('brand', 'visa')
+      properties << build_property('payment_cryptogram', '111111111100cryptogram')
+    end
+    properties << build_property('email', 'foo@bar.com')
+    properties << build_property('eci', '05')
+  end
+
+  def purchase_with_card(expected_status = :PROCESSED, properties = [], expected_params = {})
+    add_card_property(properties)
     purchase(expected_status, properties, expected_params)
   end
 
   def purchase_with_token(expected_status = :PROCESSED, properties = [], expected_params = {})
-    properties << build_property('email', 'foo@bar.com')
-    properties << build_property('token', '1234')
-
+    add_token_property(properties)
     purchase(expected_status, properties, expected_params)
   end
 
   def purchase_with_network_tokenization(expected_status = :PROCESSED, properties = [], expected_params = {})
-    properties << build_property('email', 'foo@bar.com')
-    properties << build_property('cc_number', '4111111111111111')
-    properties << build_property('brand', 'visa')
-    properties << build_property('eci', '05')
-    properties << build_property('payment_cryptogram', '111111111100cryptogram')
-
+    add_network_tokenization_properties(properties)
     purchase(expected_status, properties, expected_params)
+  end
+
+  def verify_response(payment_response, expected_status, expected_params)
+    payment_response.status.should eq(expected_status), payment_response.gateway_error
+
+    gw_response = Killbill::Cybersource::CybersourceResponse.last
+    expected_params.each do |k, v|
+      gw_response.send(k.to_sym).should == v
+    end
+  end
+
+  def create_transaction(card_type = :visa, txn_type = :authorize, previous_response = nil, expected_status = :PROCESSED, properties = [], expected_params = {})
+    if txn_type == :authorize
+      authorize(expected_status, properties, expected_params)
+    else
+      previous_response.shift
+      send(txn_type, *previous_response, expected_status, properties, expected_params)
+    end
+  end
+
+  def authorize(expected_status = :PROCESSED, properties = [], expected_params = {})
+    kb_account_id = SecureRandom.uuid
+    kb_payment_method_id = SecureRandom.uuid
+    kb_payment_id = SecureRandom.uuid
+    kb_payment = @plugin.kb_apis.proxied_services[:payment_api].add_payment(kb_payment_id)
+    kb_transaction_id = kb_payment.transactions[0].id
+
+    payment_response = @plugin.authorize_payment(kb_account_id, kb_payment_id, kb_transaction_id, kb_payment_method_id, BigDecimal.new('100'), 'USD', properties, build_call_context)
+    verify_response(payment_response, expected_status, expected_params)
+    return payment_response, kb_account_id, kb_payment_id, kb_transaction_id, kb_payment_method_id
+  end
+
+  def capture(kb_account_id, kb_payment_id, kb_transaction_id, kb_payment_method_id, expected_status = :PROCESSED, properties = [], expected_params = {})
+    payment_response = @plugin.capture_payment(kb_account_id, kb_payment_id, kb_transaction_id, kb_payment_method_id, BigDecimal.new('100'), 'USD', properties, build_call_context)
+    verify_response(payment_response, expected_status, expected_params)
+    return payment_response, kb_account_id, kb_payment_id, kb_transaction_id, kb_payment_method_id
+  end
+
+  def refund(kb_account_id, kb_payment_id, kb_transaction_id, kb_payment_method_id, expected_status = :PROCESSED, properties = [], expected_params = {})
+    payment_response = @plugin.refund_payment(kb_account_id, kb_payment_id, kb_transaction_id, kb_payment_method_id, BigDecimal.new('100'), 'USD', properties, build_call_context)
+    verify_response(payment_response, expected_status, expected_params)
+    return payment_response, kb_account_id, kb_payment_id, kb_transaction_id, kb_payment_method_id
   end
 
   def purchase(expected_status = :PROCESSED, properties = [], expected_params = {})
@@ -245,13 +382,7 @@ describe Killbill::Cybersource::PaymentPlugin do
     kb_transaction_id = kb_payment.transactions[0].id
 
     payment_response = @plugin.purchase_payment(SecureRandom.uuid, kb_payment_id, kb_transaction_id, SecureRandom.uuid, BigDecimal.new('100'), 'USD', properties, build_call_context)
-    payment_response.status.should eq(expected_status), payment_response.gateway_error
-
-    gw_response = Killbill::Cybersource::CybersourceResponse.last
-    expected_params.each do |k, v|
-      gw_response.send(k.to_sym).should == v
-    end
-
+    verify_response(payment_response, expected_status, expected_params)
     payment_response
   end
 

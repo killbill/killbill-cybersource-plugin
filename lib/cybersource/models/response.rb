@@ -121,6 +121,7 @@ module Killbill #:nodoc:
         t_info_plugin = super(transaction)
 
         t_info_plugin.properties << create_plugin_property('cybersourceResponseId', id)
+        t_info_plugin.properties << create_plugin_property('processorResponse', params_processor_response)
 
         set_correct_status(t_info_plugin)
 

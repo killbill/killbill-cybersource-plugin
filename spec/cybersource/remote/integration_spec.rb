@@ -184,6 +184,22 @@ describe Killbill::Cybersource::PaymentPlugin do
     check_response(payment_response, @amount, :PURCHASE, :PROCESSED, 'Successful transaction', '100')
   end
 
+  it 'should be able to pay with Android Pay' do
+    properties = build_pm_properties(nil,
+                                     {
+                                         :cc_number => 4895370012003478,
+                                         :cc_type => 'visa',
+                                         :payment_cryptogram => 'AgAAAAAABk4DWZ4C28yUQAAAAAA=',
+                                         :ignore_avs => true,
+                                         :ignore_cvv => true
+                                     })
+    properties << build_property('source', 'androidpay')
+
+    kb_payment = setup_kb_payment
+    payment_response = @plugin.authorize_payment(@pm.kb_account_id, kb_payment.id, kb_payment.transactions[0].id, @pm.kb_payment_method_id, @amount, @currency, properties, @call_context)
+    check_response(payment_response, @amount, :AUTHORIZE, :PROCESSED, 'Successful transaction', '100')
+  end
+
   it 'should be able to fix UNDEFINED payments' do
     payment_response = @plugin.purchase_payment(@pm.kb_account_id, @kb_payment.id, @kb_payment.transactions[0].id, @pm.kb_payment_method_id, @amount, @currency, @properties, @call_context)
     check_response(payment_response, @amount, :PURCHASE, :PROCESSED, 'Successful transaction', '100')
@@ -542,6 +558,42 @@ describe Killbill::Cybersource::PaymentPlugin do
         expected_error = ::ActiveMerchant::Billing::CyberSourceGateway.class_variable_get(:@@response_codes)[('r' + expected_reason_code).to_sym]
         check_response(payment_response, nil, :PURCHASE, :ERROR, expected_error, expected_reason_code, expected_processor_response)
       end
+    end
+  end
+
+  shared_examples 'success_auth_capture_and_refund' do
+    it 'should be able to auth, capture and refund with descriptors' do
+      @pm = create_payment_method(::Killbill::Cybersource::CybersourcePaymentMethod, nil, @call_context.tenant_id, @properties)
+
+      payment_response = @plugin.authorize_payment(@pm.kb_account_id, payment_id, SecureRandom.uuid, @pm.kb_payment_method_id, @amount, @currency, @properties, @call_context)
+      check_response(payment_response, @amount, :AUTHORIZE, :PROCESSED, 'Successful transaction', '100')
+
+      # Try a capture
+      payment_response = @plugin.capture_payment(@pm.kb_account_id, payment_id, SecureRandom.uuid, @pm.kb_payment_method_id, @amount, @currency, @properties, @call_context)
+      check_response(payment_response, @amount, :CAPTURE, :PROCESSED, 'Successful transaction', '100')
+
+      # Try a refund
+      refund_response = @plugin.refund_payment(@pm.kb_account_id, payment_id, SecureRandom.uuid, @pm.kb_payment_method_id, @amount, @currency, @properties, @call_context)
+      check_response(refund_response, @amount, :REFUND, :PROCESSED, 'Successful transaction', '100')
+    end
+  end
+
+  describe 'with merchant descriptor' do
+    before do
+      @properties << build_property('merchant_descriptor', {"name"=>"Ray Qiu", "contact"=>"6508883161"}.to_json)
+    end
+    let(:payment_id){ SecureRandom.uuid }
+
+    context 'using cybersource token' do
+      it_behaves_like 'success_auth_capture_and_refund'
+    end
+
+    context 'using credit card' do
+      before do
+        @properties << build_property('email', 'foo@bar.com')
+        @properties << build_property('cc_number', '4111111111111111')
+      end
+      it_behaves_like 'success_auth_capture_and_refund'
     end
   end
 
