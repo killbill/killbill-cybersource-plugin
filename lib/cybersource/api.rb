@@ -2,7 +2,7 @@ module Killbill #:nodoc:
   module Cybersource #:nodoc:
     class PaymentPlugin < ::Killbill::Plugin::ActiveMerchant::PaymentPlugin
 
-      SEVEN_DAYS_AGO = (7 * 86400)
+      ONE_DAY_AGO = (1 * 86400)
       SIXTY_DAYS_AGO = (60 * 86400)
 
       def initialize
@@ -152,7 +152,7 @@ module Killbill #:nodoc:
           # Report API not configured, connection problem or skip_gw=true
           next if report.nil?
 
-          threshold = (Killbill::Plugin::ActiveMerchant::Utils.normalized(options, :cancel_threshold) || SEVEN_DAYS_AGO).to_i
+          threshold = (Killbill::Plugin::ActiveMerchant::Utils.normalized(options, :cancel_threshold) || ONE_DAY_AGO).to_i
           should_cancel_payment = (now - report_date) >= threshold
           if report.empty? && !should_cancel_payment
             # We'll retry later
