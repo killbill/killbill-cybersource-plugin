@@ -1,5 +1,6 @@
 4.0.9
     Android Pay bugfix
+    Cancel UNDEFINED payments after 24 hours by default
 
 4.0.8
     Add Android Pay support
