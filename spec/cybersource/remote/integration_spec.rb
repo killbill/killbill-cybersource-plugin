@@ -223,7 +223,7 @@ describe Killbill::Cybersource::PaymentPlugin do
 
     kb_payment = setup_kb_payment
     payment_response = @plugin.purchase_payment(@pm.kb_account_id, kb_payment.id, kb_payment.transactions[0].id, @pm.kb_payment_method_id, @amount, @currency, properties, @call_context)
-    check_response(payment_response, @amount, :PURCHASEE, :PROCESSED, 'Successful transaction', '100')
+    check_response(payment_response, @amount, :PURCHASE, :PROCESSED, 'Successful transaction', '100')
 
     properties = build_pm_properties(nil,
                                      {
