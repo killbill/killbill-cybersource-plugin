@@ -64,7 +64,9 @@ module ActiveMerchant
             xml.tag! 'ccAuthService', {'run' => 'true'} do
               xml.tag!("cavv", Base64.encode64(cryptogram[0...20]))
               xml.tag!("commerceIndicator", options[:commerce_indicator] || "aesk")
-              xml.tag!("xid", Base64.encode64(cryptogram[20...40]))
+              if cryptogram.size == 40
+                xml.tag!("xid", Base64.encode64(cryptogram[20...40]))
+              end
             end
         end
       end
