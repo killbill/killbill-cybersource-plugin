@@ -135,8 +135,8 @@ module ActiveMerchant
         Response.new(success, message, response,
                      :test => test?,
                      :authorization => authorization,
-                     :avs_result => {:code => response[:avsCode]},
-                     :cvv_result => response[:cvCode]
+                     :avs_result => {:code => response['avsCode']},
+                     :cvv_result => response['cvCode']
         )
       end
 
