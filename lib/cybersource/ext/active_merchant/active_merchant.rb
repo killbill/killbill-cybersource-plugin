@@ -5,6 +5,13 @@ module ActiveMerchant
 
     class CyberSourceGateway
 
+      cattr_reader :ua
+
+      def self.x_request_id
+        # See KillbillMDCInsertingServletFilter
+        org::slf4j::MDC::get('req.requestId') rescue nil
+      end
+
       def initialize(options = {})
         super
 
@@ -108,7 +115,7 @@ module ActiveMerchant
       def commit(request, options)
         request = build_request(request, options)
         begin
-          raw_response = ssl_post(test? ? self.test_url : self.live_url, request)
+          raw_response = ssl_post(test? ? self.test_url : self.live_url, request, build_headers(options))
         rescue ResponseError => e
           raw_response = e.response.body
         end
@@ -138,6 +145,27 @@ module ActiveMerchant
                      :avs_result => {:code => response['avsCode']},
                      :cvv_result => response['cvCode']
         )
+      end
+
+      def user_agent
+        @@ua ||= JSON.dump({
+                               :bindings_version => KB_PLUGIN_VERSION,
+                               :lang => 'ruby',
+                               :lang_version => "#{RUBY_VERSION} p#{RUBY_PATCHLEVEL} (#{RUBY_RELEASE_DATE})",
+                               :platform => RUBY_PLATFORM,
+                               :publisher => 'killbill'
+                           })
+      end
+
+      def build_headers(options)
+        options[:x_request_id] ||= self.class.x_request_id
+        options[:content_type] ||= 'text/xml'
+
+        headers = {}
+        headers['Content-Type'] = options[:content_type]
+        headers['User-Agent'] = user_agent
+        headers['X-Request-Id'] = options[:x_request_id] unless options[:x_request_id].blank?
+        headers
       end
 
       def add_merchant_data(xml, options)
