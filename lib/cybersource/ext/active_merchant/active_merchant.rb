@@ -111,13 +111,18 @@ module ActiveMerchant
         end
       end
 
-      # See https://github.com/killbill/killbill-cybersource-plugin/issues/4
       def commit(request, options)
         request = build_request(request, options)
         begin
           raw_response = ssl_post(test? ? self.test_url : self.live_url, request, build_headers(options))
         rescue ResponseError => e
-          raw_response = e.response.body
+          if !e.response.nil? && e.response.code.to_i == 500 && !e.response.body.blank?
+            # See https://github.com/killbill/killbill-cybersource-plugin/issues/4
+            raw_response = e.response.body
+          else
+            # Don't swallow other 5xx errors like proxy timeouts - these should most likely be UNKNOWN
+            raise e
+          end
         end
         response = parse(raw_response)
 
@@ -143,8 +148,7 @@ module ActiveMerchant
                      :test => test?,
                      :authorization => authorization,
                      :avs_result => {:code => response['avsCode']},
-                     :cvv_result => response['cvCode']
-        )
+                     :cvv_result => response['cvCode'])
       end
 
       def user_agent

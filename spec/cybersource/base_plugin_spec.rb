@@ -147,6 +147,27 @@ describe Killbill::Cybersource::PaymentPlugin do
 
   context 'Errors handling' do
 
+    it 'handles proxy errors as UNDEFINED transactions' do
+      ::ActiveMerchant::Billing::CyberSourceGateway.any_instance.stub(:ssl_post) do |_, _|
+        raise ::ActiveMerchant::ResponseError.new(OpenStruct.new(:body => 'Oops', :code => 502))
+      end
+      purchase_with_token(:UNDEFINED).gateway_error.should == 'Failed with 502 '
+    end
+
+    it 'handles generic 500 errors as UNDEFINED transactions' do
+      ::ActiveMerchant::Billing::CyberSourceGateway.any_instance.stub(:ssl_post) do |_, _|
+        raise ::ActiveMerchant::ResponseError.new(OpenStruct.new(:body => nil, :code => 500))
+      end
+      purchase_with_token(:UNDEFINED).gateway_error.should == 'Failed with 500 '
+    end
+
+    it 'handles CyberSource errors as CANCELED transactions' do
+      ::ActiveMerchant::Billing::CyberSourceGateway.any_instance.stub(:ssl_post) do |_, _|
+        raise ::ActiveMerchant::ResponseError.new(OpenStruct.new(:body => one_or_more_fields_contains_invalid_data, :code => 500))
+      end
+      purchase_with_token(:CANCELED).gateway_error.should == 'One or more fields contains invalid data'
+    end
+
     it 'handles expired passwords as CANCELED transactions' do
       ::ActiveMerchant::Billing::CyberSourceGateway.any_instance.stub(:ssl_post).and_return(password_expired_response)
       purchase_with_token(:CANCELED).gateway_error.should == 'wsse:FailedCheck: Security Data : Merchant password has expired.'
@@ -423,6 +444,14 @@ describe Killbill::Cybersource::PaymentPlugin do
 <?xml version="1.0" encoding="utf-8"?><soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/">
 <soap:Header>
 <wsse:Security xmlns:wsse="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd"><wsu:Timestamp xmlns:wsu="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd" wsu:Id="Timestamp-28121162"><wsu:Created>2008-01-15T21:50:41.580Z</wsu:Created></wsu:Timestamp></wsse:Security></soap:Header><soap:Body><c:replyMessage xmlns:c="urn:schemas-cybersource-com:transaction-data-1.26"><c:merchantReferenceCode>a1efca956703a2a5037178a8a28f7357</c:merchantReferenceCode><c:requestID>2004338415330008402434</c:requestID><c:decision>REJECT</c:decision><c:reasonCode>102</c:reasonCode><c:requestToken>Afvvj7KfIgU12gooCFE2/DanQIApt+G1OgTSA+R9PTnyhFTb0KRjgFY+ynyIFNdoKKAghwgx</c:requestToken><c:ccAuthReversalReply><c:reasonCode>102</c:reasonCode></c:ccAuthReversalReply><c:originalTransaction><c:amount>0.00</c:amount><c:reasonCode>100</c:reasonCode></c:originalTransaction></c:replyMessage></soap:Body></soap:Envelope>
+    XML
+  end
+
+  def one_or_more_fields_contains_invalid_data
+    <<-XML
+<?xml version="1.0" encoding="utf-8"?><soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/">
+<soap:Header>
+<wsse:Security xmlns:wsse="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd"><wsu:Timestamp xmlns:wsu="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd" wsu:Id="Timestamp-28121162"><wsu:Created>2008-01-15T21:50:41.580Z</wsu:Created></wsu:Timestamp></wsse:Security></soap:Header><soap:Body><c:replyMessage xmlns:c="urn:schemas-cybersource-com:transaction-data-1.26"><c:requestID>12345</c:requestID><c:decision>REJECT</c:decision><c:reasonCode>102</c:reasonCode><c:invalidField>c:billTo/c:state</c:invalidField><c:requestToken>Afvvj7KfIgU12gooCFE2/DanQIApt+G1OgTSA+R9PTnyhFTb0KRjgFY+ynyIFNdoKKAghwgx</c:requestToken></c:replyMessage></soap:Body></soap:Envelope>
     XML
   end
 end
