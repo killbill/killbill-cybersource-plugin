@@ -1,3 +1,8 @@
+4.0.10
+    Fix parsing of AVS and CVV responses
+    Specify User-Agent, X-Request-Id and Content-Type headers to CyberSource
+    Better handling of 5xx errors
+
 4.0.9
     Android Pay bugfix
     Cancel UNDEFINED payments after 24 hours by default
