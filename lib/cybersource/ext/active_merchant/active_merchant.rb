@@ -5,8 +5,6 @@ module ActiveMerchant
 
     class CyberSourceGateway
 
-      cattr_reader :ua
-
       def self.x_request_id
         # See KillbillMDCInsertingServletFilter
         org::slf4j::MDC::get('req.requestId') rescue nil
@@ -151,7 +149,7 @@ module ActiveMerchant
                      :cvv_result => response['cvCode'])
       end
 
-      def user_agent
+      def self.user_agent
         @@ua ||= JSON.dump({
                                :bindings_version => KB_PLUGIN_VERSION,
                                :lang => 'ruby',
@@ -167,7 +165,7 @@ module ActiveMerchant
 
         headers = {}
         headers['Content-Type'] = options[:content_type]
-        headers['User-Agent'] = user_agent
+        headers['User-Agent'] = self.class.user_agent
         headers['X-Request-Id'] = options[:x_request_id] unless options[:x_request_id].blank?
         headers
       end

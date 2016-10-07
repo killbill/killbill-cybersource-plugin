@@ -1,3 +1,6 @@
+4.0.11
+    Bugfix for OnDemand API
+
 4.0.10
     Fix parsing of AVS and CVV responses
     Specify User-Agent, X-Request-Id and Content-Type headers to CyberSource

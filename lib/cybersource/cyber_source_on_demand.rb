@@ -27,7 +27,7 @@ module Killbill #:nodoc:
         headers = {
             # Don't use symbols or it will confuse Net/HTTP
             'Authorization' => 'Basic ' + Base64.encode64("#{@config[:username]}:#{@config[:password]}").chomp,
-            'User-Agent' => ActiveMerchant::Billing::CyberSourceGateway.ua
+            'User-Agent' => ActiveMerchant::Billing::CyberSourceGateway.user_agent
         }
         headers['X-Request-Id'] = ActiveMerchant::Billing::CyberSourceGateway.x_request_id unless ActiveMerchant::Billing::CyberSourceGateway.x_request_id.blank?
 
