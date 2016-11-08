@@ -233,6 +233,7 @@ module ActiveMerchant
 
       def format_name(name)
         name ||= ''
+        name = name.gsub(/[^\x20-\x7E]/, '')
         if name.index('*') != nil
           subnames = name.split('*')
           name = subnames[0].ljust(12)[0..11] + '*' + subnames[1]
