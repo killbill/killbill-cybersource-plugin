@@ -14,6 +14,7 @@ require 'sinatra'
 require 'singleton'
 require 'uri'
 require 'yaml'
+require 'accent_to_ascii'
 
 require 'killbill'
 require 'killbill/helpers/active_merchant'
