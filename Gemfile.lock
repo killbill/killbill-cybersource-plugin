@@ -2,7 +2,6 @@ PATH
   remote: .
   specs:
     killbill-cybersource (4.0.11)
-      accent_to_ascii (~> 0.1.1)
       actionpack (~> 4.1.0)
       actionview (~> 4.1.0)
       activemerchant (~> 1.48.0)
@@ -20,7 +19,6 @@ PATH
 GEM
   remote: https://rubygems.org/
   specs:
-    accent_to_ascii (0.1.1)
     actionpack (4.1.15)
       actionview (= 4.1.15)
       activesupport (= 4.1.15)
@@ -148,4 +146,4 @@ DEPENDENCIES
   rspec (~> 2.12.0)
 
 BUNDLED WITH
-   1.12.2
+   1.11.2

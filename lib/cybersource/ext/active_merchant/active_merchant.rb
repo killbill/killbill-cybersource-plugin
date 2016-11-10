@@ -233,7 +233,7 @@ module ActiveMerchant
 
       def format_name(name)
         name ||= ''
-        name = name.accent_to_ascii.gsub(/[^\x20-\x7E]/, '')
+        name = AccentToAscii.accent_to_ascii(name).gsub(/[^\x20-\x7E]/, '')
         if name.index('*') != nil
           subnames = name.split('*')
           name = subnames[0].ljust(12)[0..11] + '*' + subnames[1]

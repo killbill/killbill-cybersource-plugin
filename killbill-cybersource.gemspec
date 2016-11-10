@@ -39,7 +39,6 @@ Gem::Specification.new do |s|
   s.add_dependency 'offsite_payments', '~> 2.1.0'
   s.add_dependency 'monetize', '~> 1.1.0'
   s.add_dependency 'money', '~> 6.5.1'
-  s.add_dependency 'accent_to_ascii', '~> 0.1.1'
 
   s.add_development_dependency 'jbundler', '~> 0.9.2'
   s.add_development_dependency 'rake', '>= 10.0.0'
