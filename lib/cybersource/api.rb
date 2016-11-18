@@ -89,9 +89,10 @@ module Killbill #:nodoc:
       end
 
       def refund_payment(kb_account_id, kb_payment_id, kb_payment_transaction_id, kb_payment_method_id, amount, currency, properties, context)
-        if should_credit?(kb_payment_id, context, properties_to_hash(properties))
+        credit_opts = properties_to_hash(properties)
+        if should_credit?(kb_payment_id, context, credit_opts)
           # Note: from the plugin perspective, this transaction is a CREDIT but Kill Bill doesn't care about PaymentTransactionInfoPlugin#TransactionType
-          return credit_payment(kb_account_id, kb_payment_id, kb_payment_transaction_id, kb_payment_method_id, amount, currency, properties, context)
+          return credit_payment(kb_account_id, kb_payment_id, kb_payment_transaction_id, kb_payment_method_id, amount, currency, hash_to_properties(credit_opts), context)
         end
 
         # Pass extra parameters for the gateway here
@@ -275,6 +276,8 @@ module Killbill #:nodoc:
         return false if transaction.nil?
 
         threshold = (Killbill::Plugin::ActiveMerchant::Utils.normalized(options, :auto_credit_threshold) || SIXTY_DAYS_AGO).to_i
+
+        options[:payment_processor_account_id] ||= transaction.payment_processor_account_id
 
         (now - transaction.created_at) >= threshold
       end

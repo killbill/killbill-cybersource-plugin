@@ -62,7 +62,14 @@ describe Killbill::Cybersource::PaymentPlugin do
     with_transaction(kb_payment_id, :AUTHORIZE, 61.days.ago, context) do
       @plugin.should_credit?(kb_payment_id, context, {:disable_auto_credit => true}).should be_false
       @plugin.should_credit?(kb_payment_id, context, {:auto_credit_threshold => 61 * 86400 + 3600 + 10}).should be_false
-      @plugin.should_credit?(kb_payment_id, context).should be_true
+
+      options = {}
+      @plugin.should_credit?(kb_payment_id, context, options).should be_true
+      options[:payment_processor_account_id].should == 'GOOD'
+
+      options = {:payment_processor_account_id => 'OVERRIDDEN'}
+      @plugin.should_credit?(kb_payment_id, context, options).should be_true
+      options[:payment_processor_account_id].should == 'OVERRIDDEN'
     end
   end
 
@@ -300,6 +307,7 @@ describe Killbill::Cybersource::PaymentPlugin do
                                                                :transaction_type => transaction_type,
                                                                :kb_tenant_id => context.tenant_id,
                                                                :created_at => created_at,
+                                                               :payment_processor_account_id => 'GOOD',
                                                                # The data below doesn't matter
                                                                :updated_at => created_at,
                                                                :kb_account_id => SecureRandom.uuid,
