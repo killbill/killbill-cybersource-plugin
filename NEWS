@@ -1,3 +1,6 @@
+5.0.1
+    Re-use original payment processor by default when crediting
+
 5.0.0
     Initial release for Kill Bill 0.18.x
 
