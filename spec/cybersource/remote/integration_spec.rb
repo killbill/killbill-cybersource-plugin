@@ -7,12 +7,12 @@ describe Killbill::Cybersource::PaymentPlugin do
   include ::Killbill::Plugin::ActiveMerchant::RSpec
 
   before(:each) do
+    @plugin = build_plugin(::Killbill::Cybersource::PaymentPlugin, 'cybersource')
+    @plugin.start_plugin
+
     ::Killbill::Cybersource::CybersourcePaymentMethod.delete_all
     ::Killbill::Cybersource::CybersourceResponse.delete_all
     ::Killbill::Cybersource::CybersourceTransaction.delete_all
-
-    @plugin = build_plugin(::Killbill::Cybersource::PaymentPlugin, 'cybersource')
-    @plugin.start_plugin
 
     @call_context = build_call_context
 
