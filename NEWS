@@ -1,3 +1,6 @@
+5.0.2
+    Change ddl to be compatible with postgresql
+
 5.0.1
     Re-use original payment processor by default when crediting
 
