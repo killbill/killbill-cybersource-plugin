@@ -1,12 +1,5 @@
 #!/usr/bin/env rake
 
-module TempFixForRakeLastComment
-  def last_comment
-    last_description
-  end
-end
-Rake::Application.send :include, TempFixForRakeLastComment
-
 # Install tasks to build and release the plugin
 require 'bundler/setup'
 Bundler::GemHelper.install_tasks
