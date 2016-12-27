@@ -8,7 +8,6 @@
 #    :username: <%= ENV['OD_USERNAME'] %>
 #    :password: <%= ENV['OD_PASSWORD'] %>
 #    :check_for_duplicates: true
-  :test: true
 
 :database:
 # SQLite (development)
