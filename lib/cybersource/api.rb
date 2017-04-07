@@ -2,6 +2,7 @@ module Killbill #:nodoc:
   module Cybersource #:nodoc:
     class PaymentPlugin < ::Killbill::Plugin::ActiveMerchant::PaymentPlugin
 
+      FIVE_MINUTES_AGO = (1 * 300)
       ONE_DAY_AGO = (1 * 86400)
       SIXTY_DAYS_AGO = (60 * 86400)
 
@@ -133,6 +134,11 @@ module Killbill #:nodoc:
 
           report_date = transaction_info_plugin.created_date
           authorization = find_value_from_properties(transaction_info_plugin.properties, 'authorization')
+
+          # Give some time for CyberSource to update their records
+          janitor_delay_threshold = (Killbill::Plugin::ActiveMerchant::Utils.normalized(options, :janitor_delay_threshold) || FIVE_MINUTES_AGO).to_i
+          should_refresh_status = (now - report_date) >= janitor_delay_threshold
+          next unless should_refresh_status
 
           order_id = Killbill::Plugin::ActiveMerchant::Utils.normalized(options, :order_id)
           # authorization is very likely nil, as we didn't get an answer from the gateway in the first place

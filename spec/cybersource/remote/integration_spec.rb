@@ -279,8 +279,18 @@ describe Killbill::Cybersource::PaymentPlugin do
       # The report API can be delayed
       await { !@plugin.get_single_transaction_report(report_api, @kb_payment.transactions[0].id, Time.now.utc).empty? }
 
-      # Fix it
+      # Plugin delay hasn't been reached yet
       transaction_info_plugins = @plugin.get_payment_info(@pm.kb_account_id, @kb_payment.id, @properties, @call_context)
+      transaction_info_plugins.size.should == 1
+      transaction_info_plugins.first.status.should eq(:UNDEFINED)
+
+      # Fix it
+      janitor_delay_threshold = Killbill::Plugin::Model::PluginProperty.new
+      janitor_delay_threshold.key = 'janitor_delay_threshold'
+      janitor_delay_threshold.value = '1'
+      properties_with_janitor_delay_threshold = @properties.clone
+      properties_with_janitor_delay_threshold << janitor_delay_threshold
+      transaction_info_plugins = @plugin.get_payment_info(@pm.kb_account_id, @kb_payment.id, properties_with_janitor_delay_threshold, @call_context)
       transaction_info_plugins.size.should == 1
       transaction_info_plugins.first.status.should eq(:PROCESSED)
 
