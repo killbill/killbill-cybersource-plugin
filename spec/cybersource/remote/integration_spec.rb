@@ -316,7 +316,7 @@ describe Killbill::Cybersource::PaymentPlugin do
       new_response.transaction_type.should == 'PURCHASE'
       new_response.payment_processor_account_id.should == 'default'
       # The report API doesn't give us the token
-      new_response.authorization.split(';')[0..1].should == initial_auth.split(';')[0..1]
+      new_response.authorization.split(';')[0..1].should == initial_auth.split(';')[0..1] if with_report_api
       new_response.test.should be_true
       new_response.params_merchant_reference_code.should == response.params_merchant_reference_code
       new_response.params_decision.should == response.params_decision
