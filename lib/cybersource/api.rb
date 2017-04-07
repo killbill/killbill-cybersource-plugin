@@ -133,11 +133,14 @@ module Killbill #:nodoc:
           end
 
           report_date = transaction_info_plugin.created_date
+          delay_since_transaction = now - report_date
+          delay_since_transaction = 0 if delay_since_transaction < 0
+
           authorization = find_value_from_properties(transaction_info_plugin.properties, 'authorization')
 
           # Give some time for CyberSource to update their records
           janitor_delay_threshold = (Killbill::Plugin::ActiveMerchant::Utils.normalized(options, :janitor_delay_threshold) || FIVE_MINUTES_AGO).to_i
-          should_refresh_status = (now - report_date) >= janitor_delay_threshold
+          should_refresh_status = delay_since_transaction >= janitor_delay_threshold
           next unless should_refresh_status
 
           order_id = Killbill::Plugin::ActiveMerchant::Utils.normalized(options, :order_id)
@@ -148,7 +151,7 @@ module Killbill #:nodoc:
           if order_id.nil?
             # order_id undetermined - try the defaults (see PaymentPlugin#dispatch_to_gateways)
             report = get_report(transaction_info_plugin.kb_transaction_payment_id, report_date, options, context)
-            if report.nil?
+            if report.nil? || report.empty?
               kb_transaction = get_kb_transaction(kb_payment_id, transaction_info_plugin.kb_transaction_payment_id, context.tenant_id)
               report = get_report(kb_transaction.external_key, report_date, options, context)
             end
@@ -160,7 +163,7 @@ module Killbill #:nodoc:
           next if report.nil?
 
           threshold = (Killbill::Plugin::ActiveMerchant::Utils.normalized(options, :cancel_threshold) || ONE_DAY_AGO).to_i
-          should_cancel_payment = (now - report_date) >= threshold
+          should_cancel_payment = delay_since_transaction >= threshold
           if report.empty? && !should_cancel_payment
             # We'll retry later
             logger.info("Unable to fix UNDEFINED kb_transaction_id='#{transaction_info_plugin.kb_transaction_payment_id}' (not found in CyberSource)")

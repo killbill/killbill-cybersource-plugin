@@ -254,76 +254,95 @@ describe Killbill::Cybersource::PaymentPlugin do
     check_response(payment_response, @amount, :PURCHASE, :PROCESSED, 'Successful transaction', '100')
   end
 
-  it 'should be able to fix UNDEFINED payments' do
-    payment_response = @plugin.purchase_payment(@pm.kb_account_id, @kb_payment.id, @kb_payment.transactions[0].id, @pm.kb_payment_method_id, @amount, @currency, @properties, @call_context)
-    check_response(payment_response, @amount, :PURCHASE, :PROCESSED, 'Successful transaction', '100')
+  shared_examples 'fix_undefined_payments' do
+    it 'should be able to fix UNDEFINED payments' do
+      payment_response = @plugin.purchase_payment(@pm.kb_account_id, @kb_payment.id, @kb_payment.transactions[0].id, @pm.kb_payment_method_id, @amount, @currency, @properties, @call_context)
+      check_response(payment_response, @amount, :PURCHASE, :PROCESSED, 'Successful transaction', '100')
 
-    # Force a transition to :UNDEFINED
-    Killbill::Cybersource::CybersourceTransaction.last.delete
-    response = Killbill::Cybersource::CybersourceResponse.last
-    response.update(:message => {:payment_plugin_status => 'UNDEFINED'}.to_json)
+      # Force a transition to :UNDEFINED
+      Killbill::Cybersource::CybersourceTransaction.last.delete
+      response = Killbill::Cybersource::CybersourceResponse.last
+      initial_auth = response.authorization
+      response.update(:authorization => nil, :message => {:payment_plugin_status => 'UNDEFINED'}.to_json)
 
-    skip_gw = Killbill::Plugin::Model::PluginProperty.new
-    skip_gw.key = 'skip_gw'
-    skip_gw.value = 'true'
-    properties_with_skip_gw = @properties.clone
-    properties_with_skip_gw << skip_gw
+      skip_gw = Killbill::Plugin::Model::PluginProperty.new
+      skip_gw.key = 'skip_gw'
+      skip_gw.value = 'true'
+      properties_with_skip_gw = @properties.clone
+      properties_with_skip_gw << skip_gw
 
-    # Set skip_gw=true, to avoid calling the report API
-    transaction_info_plugins = @plugin.get_payment_info(@pm.kb_account_id, @kb_payment.id, properties_with_skip_gw, @call_context)
-    transaction_info_plugins.size.should == 1
-    transaction_info_plugins.first.status.should eq(:UNDEFINED)
-
-    # Skip if the report API isn't configured
-    if with_report_api
-      # The report API can be delayed
-      await { !@plugin.get_single_transaction_report(report_api, @kb_payment.transactions[0].id, Time.now.utc).empty? }
-
-      # Plugin delay hasn't been reached yet
-      transaction_info_plugins = @plugin.get_payment_info(@pm.kb_account_id, @kb_payment.id, @properties, @call_context)
+      # Set skip_gw=true, to avoid calling the report API
+      transaction_info_plugins = @plugin.get_payment_info(@pm.kb_account_id, @kb_payment.id, properties_with_skip_gw, @call_context)
       transaction_info_plugins.size.should == 1
       transaction_info_plugins.first.status.should eq(:UNDEFINED)
 
-      # Fix it
-      janitor_delay_threshold = Killbill::Plugin::Model::PluginProperty.new
-      janitor_delay_threshold.key = 'janitor_delay_threshold'
-      janitor_delay_threshold.value = '1'
-      properties_with_janitor_delay_threshold = @properties.clone
-      properties_with_janitor_delay_threshold << janitor_delay_threshold
-      transaction_info_plugins = @plugin.get_payment_info(@pm.kb_account_id, @kb_payment.id, properties_with_janitor_delay_threshold, @call_context)
-      transaction_info_plugins.size.should == 1
-      transaction_info_plugins.first.status.should eq(:PROCESSED)
+      # Skip if the report API isn't configured
+      if with_report_api
+        # The report API can be delayed
+        await do
+          !@plugin.get_single_transaction_report(report_api, @kb_payment.transactions[0].id, Time.now.utc).empty? ||
+          !@plugin.get_single_transaction_report(report_api, @kb_payment.transactions[0].external_key, Time.now.utc).empty?
+        end
 
-      # Set skip_gw=true, to check the local state
-      transaction_info_plugins = @plugin.get_payment_info(@pm.kb_account_id, @kb_payment.id, properties_with_skip_gw, @call_context)
-      transaction_info_plugins.size.should == 1
-      transaction_info_plugins.first.status.should eq(:PROCESSED)
+        # Plugin delay hasn't been reached yet
+        transaction_info_plugins = @plugin.get_payment_info(@pm.kb_account_id, @kb_payment.id, @properties, @call_context)
+        transaction_info_plugins.size.should == 1
+        transaction_info_plugins.first.status.should eq(:UNDEFINED)
+
+        # Fix it
+        janitor_delay_threshold = Killbill::Plugin::Model::PluginProperty.new
+        janitor_delay_threshold.key = 'janitor_delay_threshold'
+        janitor_delay_threshold.value = '0'
+        properties_with_janitor_delay_threshold = @properties.clone
+        properties_with_janitor_delay_threshold << janitor_delay_threshold
+        transaction_info_plugins = @plugin.get_payment_info(@pm.kb_account_id, @kb_payment.id, properties_with_janitor_delay_threshold, @call_context)
+        transaction_info_plugins.size.should == 1
+        transaction_info_plugins.first.status.should eq(:PROCESSED)
+
+        # Set skip_gw=true, to check the local state
+        transaction_info_plugins = @plugin.get_payment_info(@pm.kb_account_id, @kb_payment.id, properties_with_skip_gw, @call_context)
+        transaction_info_plugins.size.should == 1
+        transaction_info_plugins.first.status.should eq(:PROCESSED)
+      end
+
+      # Compare the state of the old and new response
+      new_response = Killbill::Cybersource::CybersourceResponse.last
+      new_response.id.should == response.id
+      new_response.api_call.should == 'purchase'
+      new_response.kb_tenant_id.should == @call_context.tenant_id
+      new_response.kb_account_id.should == @pm.kb_account_id
+      new_response.kb_payment_id.should == @kb_payment.id
+      new_response.kb_payment_transaction_id.should == @kb_payment.transactions[0].id
+      new_response.transaction_type.should == 'PURCHASE'
+      new_response.payment_processor_account_id.should == 'default'
+      # The report API doesn't give us the token
+      new_response.authorization.split(';')[0..1].should == initial_auth.split(';')[0..1]
+      new_response.test.should be_true
+      new_response.params_merchant_reference_code.should == response.params_merchant_reference_code
+      new_response.params_decision.should == response.params_decision
+      new_response.params_request_token.should == response.params_request_token
+      new_response.params_currency.should == response.params_currency
+      new_response.params_amount.should == response.params_amount
+      new_response.params_authorization_code.should == response.params_authorization_code
+      new_response.params_avs_code.should == response.params_avs_code
+      new_response.params_avs_code_raw.should == response.params_avs_code_raw
+      new_response.params_reconciliation_id.should == response.params_reconciliation_id
+      new_response.success.should be_true
+      new_response.message.should == (with_report_api ? 'Request was processed successfully.' : '{"payment_plugin_status":"UNDEFINED"}')
+    end
+  end
+
+  describe 'with on demand API' do
+    context 'using defaults' do
+     it_behaves_like 'fix_undefined_payments'
     end
 
-    # Compare the state of the old and new response
-    new_response = Killbill::Cybersource::CybersourceResponse.last
-    new_response.id.should == response.id
-    new_response.api_call.should == 'purchase'
-    new_response.kb_tenant_id.should == @call_context.tenant_id
-    new_response.kb_account_id.should == @pm.kb_account_id
-    new_response.kb_payment_id.should == @kb_payment.id
-    new_response.kb_payment_transaction_id.should == @kb_payment.transactions[0].id
-    new_response.transaction_type.should == 'PURCHASE'
-    new_response.payment_processor_account_id.should == 'default'
-    # The report API doesn't give us the token
-    new_response.authorization.split(';')[0..1].should == response.authorization.split(';')[0..1]
-    new_response.test.should be_true
-    new_response.params_merchant_reference_code.should == response.params_merchant_reference_code
-    new_response.params_decision.should == response.params_decision
-    new_response.params_request_token.should == response.params_request_token
-    new_response.params_currency.should == response.params_currency
-    new_response.params_amount.should == response.params_amount
-    new_response.params_authorization_code.should == response.params_authorization_code
-    new_response.params_avs_code.should == response.params_avs_code
-    new_response.params_avs_code_raw.should == response.params_avs_code_raw
-    new_response.params_reconciliation_id.should == response.params_reconciliation_id
-    new_response.success.should be_true
-    new_response.message.should == (with_report_api ? 'Request was processed successfully.' : '{"payment_plugin_status":"UNDEFINED"}')
+    context 'using external_key_as_order_id' do
+      before do
+        @properties << build_property('external_key_as_order_id', true)
+      end
+      it_behaves_like 'fix_undefined_payments'
+    end
   end
 
   it 'should eventually cancel UNDEFINED payments' do
@@ -340,14 +359,20 @@ describe Killbill::Cybersource::PaymentPlugin do
     skip_gw = Killbill::Plugin::Model::PluginProperty.new
     skip_gw.key = 'skip_gw'
     skip_gw.value = 'true'
-    properties_with_cancel_threshold = @properties.clone
-    properties_with_cancel_threshold << skip_gw
-    transaction_info_plugins = @plugin.get_payment_info(@pm.kb_account_id, @kb_payment.id, properties_with_cancel_threshold, @call_context)
+    properties_with_skip_gw = @properties.clone
+    properties_with_skip_gw << skip_gw
+    transaction_info_plugins = @plugin.get_payment_info(@pm.kb_account_id, @kb_payment.id, properties_with_skip_gw, @call_context)
     transaction_info_plugins.size.should == 1
     transaction_info_plugins.first.status.should eq(:UNDEFINED)
 
+    janitor_delay_threshold = Killbill::Plugin::Model::PluginProperty.new
+    janitor_delay_threshold.key = 'janitor_delay_threshold'
+    janitor_delay_threshold.value = '0'
+    properties_with_janitor_delay_threshold = @properties.clone
+    properties_with_janitor_delay_threshold << janitor_delay_threshold
+
     # Call the reporting API (if configured) and verify the state still cannot be fixed
-    transaction_info_plugins = @plugin.get_payment_info(@pm.kb_account_id, @kb_payment.id, @properties, @call_context)
+    transaction_info_plugins = @plugin.get_payment_info(@pm.kb_account_id, @kb_payment.id, properties_with_janitor_delay_threshold, @call_context)
     transaction_info_plugins.size.should == 1
     transaction_info_plugins.first.status.should eq(:UNDEFINED)
 
@@ -358,7 +383,7 @@ describe Killbill::Cybersource::PaymentPlugin do
     cancel_threshold = Killbill::Plugin::Model::PluginProperty.new
     cancel_threshold.key = 'cancel_threshold'
     cancel_threshold.value = '0'
-    properties_with_cancel_threshold = @properties.clone
+    properties_with_cancel_threshold = properties_with_janitor_delay_threshold.clone
     properties_with_cancel_threshold << cancel_threshold
     transaction_info_plugins = @plugin.get_payment_info(@pm.kb_account_id, @kb_payment.id, properties_with_cancel_threshold, @call_context)
     transaction_info_plugins.size.should == 1
