@@ -137,6 +137,9 @@ module Killbill #:nodoc:
                                                               :authorization => authorization,
                                                               :avs_result => {:code => params['avsCode']},
                                                               :cvv_result => params['cvCode'])
+        rescue => e
+          @logger.warn "Error '#{e.message}' parsing report: #{@hash_report}\n#{e.backtrace.join("\n")}"
+          raise e
         end
 
         def parse_report
@@ -148,8 +151,13 @@ module Killbill #:nodoc:
         end
 
         def parse_request(report)
-          # Assume the report contains a single request
-          !report.nil? && !report['Requests'].nil? ? report['Requests']['Request'] : nil
+          if !report.nil? && !report['Requests'].nil?
+            requests = report['Requests']['Request']
+            # First one seems to be the last request made, assume it's the one we are looking for (no other easy way to tell unfortunately)
+            requests.is_a?(Hash) ? requests : requests.first
+          else
+            nil
+          end
         end
 
         # Note: for now, we only look at the response from CyberSource.
@@ -163,8 +171,8 @@ module Killbill #:nodoc:
 
           success = true
           application_replies.each do |application_reply|
-            success &&= (application_reply['RCode'].to_s == '1')
-            # Last message by convention
+            success = (application_reply['RCode'].to_s == '1')
+            # Assume last entry is the one we are looking for (no other easy way to tell unfortunately)
             msg = application_reply['RMsg']
           end
           [success, msg]

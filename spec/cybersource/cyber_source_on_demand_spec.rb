@@ -255,7 +255,7 @@ eos
 eos
     report = Killbill::Cybersource::CyberSourceOnDemand::CyberSourceOnDemandTransactionReport.new(xml_report, Logger.new(STDOUT))
     response = report.response
-    response.success?.should be_false
+    response.success?.should be_true
     response.message.should == 'Score exceeds threshold. Score = 84'
     response.params['merchantReferenceCode'].should == '1234'
     response.params['requestID'].should == '2434465504100167904567'

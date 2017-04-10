@@ -121,6 +121,19 @@ module Killbill #:nodoc:
 
         options = properties_to_hash(properties)
 
+        initial_transaction = nil
+        transaction_info_plugins.each do |transaction_info_plugin|
+          initial_transaction = transaction_info_plugin if transaction_info_plugin.transaction_type == :AUTHORIZE || transaction_info_plugin.transaction_type == :PURCHASE || transaction_info_plugin.transaction_type == :CREDIT
+        end
+
+        # Should never happen (maybe transaction_type wasn't saved?)...
+        initial_transaction = transaction_info_plugins.last if initial_transaction.nil?
+
+        authorization = find_value_from_properties(initial_transaction.properties, 'authorization')
+        order_id = Killbill::Plugin::ActiveMerchant::Utils.normalized(options, :order_id)
+        # authorization is very likely nil, as we didn't get an answer from the gateway in the first place
+        order_id ||= authorization.split(';')[0] unless authorization.nil?
+
         stale = false
         transaction_info_plugins.each do |transaction_info_plugin|
           # We only need to fix the UNDEFINED ones
@@ -136,23 +149,17 @@ module Killbill #:nodoc:
           delay_since_transaction = now - report_date
           delay_since_transaction = 0 if delay_since_transaction < 0
 
-          authorization = find_value_from_properties(transaction_info_plugin.properties, 'authorization')
-
           # Give some time for CyberSource to update their records
           janitor_delay_threshold = (Killbill::Plugin::ActiveMerchant::Utils.normalized(options, :janitor_delay_threshold) || FIVE_MINUTES_AGO).to_i
           should_refresh_status = delay_since_transaction >= janitor_delay_threshold
           next unless should_refresh_status
 
-          order_id = Killbill::Plugin::ActiveMerchant::Utils.normalized(options, :order_id)
-          # authorization is very likely nil, as we didn't get an answer from the gateway in the first place
-          order_id ||= authorization.split(';')[0] unless authorization.nil?
-
           # Retrieve the report from CyberSource
           if order_id.nil?
             # order_id undetermined - try the defaults (see PaymentPlugin#dispatch_to_gateways)
-            report = get_report(transaction_info_plugin.kb_transaction_payment_id, report_date, options, context)
+            report = get_report(initial_transaction.kb_transaction_payment_id, report_date, options, context)
             if report.nil? || report.empty?
-              kb_transaction = get_kb_transaction(kb_payment_id, transaction_info_plugin.kb_transaction_payment_id, context.tenant_id)
+              kb_transaction = get_kb_transaction(kb_payment_id, initial_transaction.kb_transaction_payment_id, context.tenant_id)
               report = get_report(kb_transaction.external_key, report_date, options, context)
             end
           else
