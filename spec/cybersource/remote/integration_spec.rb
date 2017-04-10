@@ -268,7 +268,7 @@ describe Killbill::Cybersource::PaymentPlugin do
       # Compare the state of the old and new response
       check_old_new_response(response, :PURCHASE, 0, initial_auth)
 
-      return unless with_report_api
+      break unless with_report_api
 
       # Try a full refund
       refund_response = @plugin.refund_payment(@pm.kb_account_id, @kb_payment.id, @kb_payment.transactions[1].id, @pm.kb_payment_method_id, @amount, @currency, @properties, @call_context)
