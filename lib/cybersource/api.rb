@@ -134,6 +134,8 @@ module Killbill #:nodoc:
         # authorization is very likely nil, as we didn't get an answer from the gateway in the first place
         order_id ||= authorization.split(';')[0] unless authorization.nil?
 
+        existing_request_ids = transaction_info_plugins.map{|trx_info| trx_info.first_payment_reference_id}.compact
+
         stale = false
         transaction_info_plugins.each do |transaction_info_plugin|
           # We only need to fix the UNDEFINED ones
@@ -144,15 +146,6 @@ module Killbill #:nodoc:
             logger.warn("Unable to fix UNDEFINED kb_transaction_id='#{transaction_info_plugin.kb_transaction_payment_id}' (cybersource_response_id not specified)")
             next
           end
-
-          response = CybersourceResponse.find_by(:id => cybersource_response_id)
-          if response.nil?
-            logger.warn("Unable to fix UNDEFINED kb_transaction_id='#{transaction_info_plugin.kb_transaction_payment_id}' (CyberSource response='#{cybersource_response_id}' not found)")
-            next
-          end
-
-          request_id = response.params_request_id
-          existing_request_ids = CybersourceResponse.where(:kb_payment_id => kb_payment_id).map{|r| r.params_request_id}.compact
 
           report_date = transaction_info_plugin.created_date
           delay_since_transaction = now - report_date
@@ -180,11 +173,17 @@ module Killbill #:nodoc:
 
           threshold = (Killbill::Plugin::ActiveMerchant::Utils.normalized(options, :cancel_threshold) || ONE_DAY_AGO).to_i
           should_cancel_payment = delay_since_transaction >= threshold
-          if (report.empty? || report_not_match(report, request_id, existing_request_ids)) && !should_cancel_payment
+          if (report.empty? || report_not_match(report, transaction_info_plugin.first_payment_reference_id, existing_request_ids)) && !should_cancel_payment
             # We'll retry later
             logger.info("Unable to fix UNDEFINED kb_transaction_id='#{transaction_info_plugin.kb_transaction_payment_id}' (not found in CyberSource)")
             next
           else
+            # Update our rows
+            response = CybersourceResponse.find_by(:id => cybersource_response_id)
+            if response.nil?
+              logger.warn("Unable to fix UNDEFINED kb_transaction_id='#{transaction_info_plugin.kb_transaction_payment_id}' (CyberSource response='#{cybersource_response_id}' not found)")
+              next
+            end
 
             if should_cancel_payment
               # At this point, it's safe to assume the payment never happened
