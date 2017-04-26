@@ -145,6 +145,15 @@ module Killbill #:nodoc:
             next
           end
 
+          response = CybersourceResponse.find_by(:id => cybersource_response_id)
+          if response.nil?
+            logger.warn("Unable to fix UNDEFINED kb_transaction_id='#{transaction_info_plugin.kb_transaction_payment_id}' (CyberSource response='#{cybersource_response_id}' not found)")
+            next
+          end
+
+          request_id = response.params_request_id
+          existing_request_ids = CybersourceResponse.where(:kb_payment_id => kb_payment_id).map{|r| r.params_request_id}.compact
+
           report_date = transaction_info_plugin.created_date
           delay_since_transaction = now - report_date
           delay_since_transaction = 0 if delay_since_transaction < 0
@@ -171,17 +180,11 @@ module Killbill #:nodoc:
 
           threshold = (Killbill::Plugin::ActiveMerchant::Utils.normalized(options, :cancel_threshold) || ONE_DAY_AGO).to_i
           should_cancel_payment = delay_since_transaction >= threshold
-          if report.empty? && !should_cancel_payment
+          if (report.empty? || report_not_match(report, request_id, existing_request_ids)) && !should_cancel_payment
             # We'll retry later
             logger.info("Unable to fix UNDEFINED kb_transaction_id='#{transaction_info_plugin.kb_transaction_payment_id}' (not found in CyberSource)")
             next
           else
-            # Update our rows
-            response = CybersourceResponse.find_by(:id => cybersource_response_id)
-            if response.nil?
-              logger.warn("Unable to fix UNDEFINED kb_transaction_id='#{transaction_info_plugin.kb_transaction_payment_id}' (CyberSource response='#{cybersource_response_id}' not found)")
-              next
-            end
 
             if should_cancel_payment
               # At this point, it's safe to assume the payment never happened
@@ -444,6 +447,11 @@ module Killbill #:nodoc:
       def now
         # We might want a 'util' function to make the conversion Joda DateTime to a Ruby Time object
         Time.parse(@clock.get_clock.get_utc_now.to_s)
+      end
+
+      def report_not_match(report, request_id, existing_request_ids)
+        # Check if the response's request id is the request_id of a previous request. If so, then this report does not match.
+        report.request_id.nil? || (request_id != report.request_id && existing_request_ids.include?(report.request_id))
       end
     end
   end

@@ -94,6 +94,10 @@ module Killbill #:nodoc:
           @response.params['merchantReferenceCode'].nil?
         end
 
+        def request_id
+          @response.params['requestID']
+        end
+
         private
 
         def parse
