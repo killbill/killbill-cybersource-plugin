@@ -27,4 +27,5 @@ require 'cybersource/private_api'
 require 'cybersource/models/payment_method'
 require 'cybersource/models/response'
 require 'cybersource/models/transaction'
+require 'cybersource/support/accent_to_ascii'
 

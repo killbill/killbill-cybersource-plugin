@@ -759,7 +759,7 @@ describe Killbill::Cybersource::PaymentPlugin do
 
   describe 'with merchant descriptor' do
     before do
-      @properties << build_property('merchant_descriptor', {"name"=>"Ray Qiu", "contact"=>"6508883161"}.to_json)
+      @properties << build_property('merchant_descriptor', {"name"=>"Ray Qiu\u{c3}\u{bc}\u{fc}\u{fc}\u{fc}\u{fc}\u{fc}\u{fc}\u{fc}\u{fc}\u{fc}\u{fc}\u{fc}", "contact"=>"6508883161"}.to_json)
     end
     let(:payment_id){ SecureRandom.uuid }
 
