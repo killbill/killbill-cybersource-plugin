@@ -280,7 +280,7 @@ describe Killbill::Cybersource::PaymentPlugin do
       fix_transaction(1)
 
       # Compare the state of the old and new response
-      check_old_new_response(response, :REFUND, 1, initial_auth)
+      check_old_new_response(response, :REFUND, 1, initial_auth, refund_response.first_payment_reference_id)
     end
 
     it 'should fix UNDEFINED captures' do
@@ -394,7 +394,7 @@ describe Killbill::Cybersource::PaymentPlugin do
       transaction_info_plugins.last.status.should eq(expected_state)
     end
 
-    def check_old_new_response(response, transaction_type, transaction_nb, initial_auth, request_id = nil)
+    def check_old_new_response(response, transaction_type, transaction_nb, initial_auth, request_id)
       new_response = Killbill::Cybersource::CybersourceResponse.last
       new_response.id.should == response.id
       new_response.api_call.should == transaction_type.to_s.downcase
@@ -418,7 +418,7 @@ describe Killbill::Cybersource::PaymentPlugin do
       new_response.params_reconciliation_id.should == response.params_reconciliation_id
       new_response.success.should be_true
       new_response.message.should == (with_report_api ? 'Request was processed successfully.' : '{"payment_plugin_status":"UNDEFINED"}')
-      new_response.params_request_id.should == request_id unless request_id.nil?
+      new_response.params_request_id.should == request_id if with_report_api
     end
   end
 
