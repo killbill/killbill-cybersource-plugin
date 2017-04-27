@@ -1,3 +1,13 @@
+5.2.1
+    Remove git dependency
+
+5.2.0
+    Fix janitor on demand report api bug
+
+5.1.0
+    Improvements around OnDemand integration
+    Improve postgresql support
+
 5.0.2
     Change ddl to be compatible with postgresql
 
