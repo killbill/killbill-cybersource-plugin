@@ -134,6 +134,8 @@ module Killbill #:nodoc:
         # authorization is very likely nil, as we didn't get an answer from the gateway in the first place
         order_id ||= authorization.split(';')[0] unless authorization.nil?
 
+        existing_request_ids = transaction_info_plugins.map{|trx_info| trx_info.first_payment_reference_id}.compact
+
         stale = false
         transaction_info_plugins.each do |transaction_info_plugin|
           # We only need to fix the UNDEFINED ones
@@ -171,7 +173,7 @@ module Killbill #:nodoc:
 
           threshold = (Killbill::Plugin::ActiveMerchant::Utils.normalized(options, :cancel_threshold) || ONE_DAY_AGO).to_i
           should_cancel_payment = delay_since_transaction >= threshold
-          if report.empty? && !should_cancel_payment
+          if (report.empty? || report_not_match(report, transaction_info_plugin.first_payment_reference_id, existing_request_ids)) && !should_cancel_payment
             # We'll retry later
             logger.info("Unable to fix UNDEFINED kb_transaction_id='#{transaction_info_plugin.kb_transaction_payment_id}' (not found in CyberSource)")
             next
@@ -444,6 +446,11 @@ module Killbill #:nodoc:
       def now
         # We might want a 'util' function to make the conversion Joda DateTime to a Ruby Time object
         Time.parse(@clock.get_clock.get_utc_now.to_s)
+      end
+
+      def report_not_match(report, request_id, existing_request_ids)
+        # Check if the response's request id is the request_id of a previous request. If so, then this report does not match.
+        report.request_id.nil? || (request_id != report.request_id && existing_request_ids.include?(report.request_id))
       end
     end
   end

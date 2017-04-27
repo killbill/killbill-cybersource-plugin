@@ -266,7 +266,7 @@ describe Killbill::Cybersource::PaymentPlugin do
       fix_transaction(0) if with_report_api
 
       # Compare the state of the old and new response
-      check_old_new_response(response, :PURCHASE, 0, initial_auth)
+      check_old_new_response(response, :PURCHASE, 0, initial_auth, payment_response.first_payment_reference_id)
 
       break unless with_report_api
 
@@ -283,11 +283,69 @@ describe Killbill::Cybersource::PaymentPlugin do
       check_old_new_response(response, :REFUND, 1, initial_auth)
     end
 
+    it 'should fix UNDEFINED captures' do
+      @plugin.authorize_payment(@pm.kb_account_id, @kb_payment.id, @kb_payment.transactions[0].id, @pm.kb_payment_method_id, @amount, @currency, @properties, @call_context)
+      payment_response = @plugin.capture_payment(@pm.kb_account_id, @kb_payment.id, @kb_payment.transactions[1].id, @pm.kb_payment_method_id, @amount, @currency, @properties, @call_context)
+      check_response(payment_response, @amount, :CAPTURE, :PROCESSED, 'Successful transaction', '100')
+
+      # Force a transition to :UNDEFINED
+      response, initial_auth = transition_last_response_to_UNDEFINED(2)
+
+      # Skip if the report API isn't configured
+      fix_transaction(1) if with_report_api
+
+      # Compare the state of the old and new response
+      check_old_new_response(response, :CAPTURE, 1, initial_auth, payment_response.first_payment_reference_id)
+
+      break unless with_report_api
+
+      # Try a full refund
+      refund_response = @plugin.refund_payment(@pm.kb_account_id, @kb_payment.id, @kb_payment.transactions[1].id, @pm.kb_payment_method_id, @amount, @currency, @properties, @call_context)
+      check_response(refund_response, @amount, :REFUND, :PROCESSED, 'Successful transaction', '100')
+    end
+
+    it 'should not fix UNDEFINED captures if the report only covers the previous request' do
+      @plugin.authorize_payment(@pm.kb_account_id, @kb_payment.id, @kb_payment.transactions[0].id, @pm.kb_payment_method_id, @amount, @currency, @properties, @call_context)
+
+      # Skip gw call so that on_demand report api won't return a record for this call
+      skip_gw = Killbill::Plugin::Model::PluginProperty.new
+      skip_gw.key = 'skip_gw'
+      skip_gw.value = 'true'
+      properties_with_skip_gw = @properties.clone
+      properties_with_skip_gw << skip_gw
+      @plugin.capture_payment(@pm.kb_account_id, @kb_payment.id, @kb_payment.transactions[1].id, @pm.kb_payment_method_id, @amount, @currency, properties_with_skip_gw, @call_context)
+
+      # Force a transition to :UNDEFINED
+      transition_last_response_to_UNDEFINED(2)
+
+      # Shouldn't be able to fix the capture because it skipped the gateway call
+      fix_transaction(1, :UNDEFINED) if with_report_api
+    end
+
+    it 'should not fix UNDEFINED refunds if the report only covers the previous requests' do
+      @plugin.authorize_payment(@pm.kb_account_id, @kb_payment.id, @kb_payment.transactions[0].id, @pm.kb_payment_method_id, @amount, @currency, @properties, @call_context)
+      @plugin.capture_payment(@pm.kb_account_id, @kb_payment.id, @kb_payment.transactions[1].id, @pm.kb_payment_method_id, @amount, @currency, @properties, @call_context)
+
+      # Skip gw call so that on_demand report api won't return a record for this call
+      skip_gw = Killbill::Plugin::Model::PluginProperty.new
+      skip_gw.key = 'skip_gw'
+      skip_gw.value = 'true'
+      properties_with_skip_gw = @properties.clone
+      properties_with_skip_gw << skip_gw
+      @plugin.refund_payment(@pm.kb_account_id, @kb_payment.id, @kb_payment.transactions[1].id, @pm.kb_payment_method_id, @amount, @currency, properties_with_skip_gw, @call_context)
+
+      # Force a transition to :UNDEFINED
+      transition_last_response_to_UNDEFINED(3)
+
+      # Shouldn't be able to fix the capture because it skipped the gateway call
+      fix_transaction(2, :UNDEFINED) if with_report_api
+    end
+
     def transition_last_response_to_UNDEFINED(expected_nb_transactions)
       Killbill::Cybersource::CybersourceTransaction.last.delete
       response = Killbill::Cybersource::CybersourceResponse.last
       initial_auth = response.authorization
-      response.update(:authorization => nil, :message => {:payment_plugin_status => 'UNDEFINED'}.to_json)
+      response.update(:authorization => nil, :params_request_id => nil, :message => {:payment_plugin_status => 'UNDEFINED'}.to_json)
 
       skip_gw = Killbill::Plugin::Model::PluginProperty.new
       skip_gw.key = 'skip_gw'
@@ -303,7 +361,7 @@ describe Killbill::Cybersource::PaymentPlugin do
       [response, initial_auth]
     end
 
-    def fix_transaction(transaction_nb)
+    def fix_transaction(transaction_nb, expected_state=:PROCESSED)
       # The report API can be delayed
       await do
         !@plugin.get_single_transaction_report(report_api, @kb_payment.transactions[0].id, Time.now.utc).empty? ||
@@ -323,7 +381,7 @@ describe Killbill::Cybersource::PaymentPlugin do
       properties_with_janitor_delay_threshold << janitor_delay_threshold
       transaction_info_plugins = @plugin.get_payment_info(@pm.kb_account_id, @kb_payment.id, properties_with_janitor_delay_threshold, @call_context)
       transaction_info_plugins.size.should == transaction_nb + 1
-      transaction_info_plugins.last.status.should eq(:PROCESSED)
+      transaction_info_plugins.last.status.should eq(expected_state)
 
       # Set skip_gw=true, to check the local state
       skip_gw = Killbill::Plugin::Model::PluginProperty.new
@@ -333,10 +391,10 @@ describe Killbill::Cybersource::PaymentPlugin do
       properties_with_skip_gw << skip_gw
       transaction_info_plugins = @plugin.get_payment_info(@pm.kb_account_id, @kb_payment.id, properties_with_skip_gw, @call_context)
       transaction_info_plugins.size.should == transaction_nb + 1
-      transaction_info_plugins.last.status.should eq(:PROCESSED)
+      transaction_info_plugins.last.status.should eq(expected_state)
     end
 
-    def check_old_new_response(response, transaction_type, transaction_nb, initial_auth)
+    def check_old_new_response(response, transaction_type, transaction_nb, initial_auth, request_id = nil)
       new_response = Killbill::Cybersource::CybersourceResponse.last
       new_response.id.should == response.id
       new_response.api_call.should == transaction_type.to_s.downcase
@@ -354,12 +412,13 @@ describe Killbill::Cybersource::PaymentPlugin do
       new_response.params_request_token.should == response.params_request_token
       new_response.params_currency.should == response.params_currency
       new_response.params_amount.should == response.params_amount
-      new_response.params_authorization_code.should == response.params_authorization_code
-      new_response.params_avs_code.should == response.params_avs_code
-      new_response.params_avs_code_raw.should == response.params_avs_code_raw
+      new_response.params_authorization_code.should == response.params_authorization_code unless response.params_authorization_code.nil?
+      new_response.params_avs_code.should == response.params_avs_code unless response.params_avs_code.nil?
+      new_response.params_avs_code_raw.should == response.params_avs_code_raw unless response.params_avs_code.nil?
       new_response.params_reconciliation_id.should == response.params_reconciliation_id
       new_response.success.should be_true
       new_response.message.should == (with_report_api ? 'Request was processed successfully.' : '{"payment_plugin_status":"UNDEFINED"}')
+      new_response.params_request_id.should == request_id unless request_id.nil?
     end
   end
 
