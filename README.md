@@ -47,6 +47,16 @@ To go to production, create a `cybersource.yml` configuration file under `/var/t
   :test: false
 ```
 
+To use PostgreSQL:
+
+* Set the following Kill Bill property: `org.killbill.osgi.system.bundle.export.packages.extra=org.postgresql`
+* Update the on-disk CyberSource configuration file with this section:
+
+```
+:database:
+  :adapter: postgresql
+```
+
 Usage
 -----
 
