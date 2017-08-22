@@ -32,6 +32,7 @@ module Killbill #:nodoc:
 
         add_required_options(kb_account_id, properties, options, context)
         add_merchant_descriptor(:AUTHORIZE, properties, options)
+        add_reconciliation_id(properties, options)
 
         properties = merge_properties(properties, options)
         auth_response = super(kb_account_id, kb_payment_id, kb_payment_transaction_id, kb_payment_method_id, amount, currency, properties, context)
@@ -54,6 +55,7 @@ module Killbill #:nodoc:
 
         add_required_options(kb_account_id, properties, options, context)
         add_merchant_descriptor(:CAPTURE, properties, options)
+        add_reconciliation_id(properties, options)
 
         properties = merge_properties(properties, options)
         super(kb_account_id, kb_payment_id, kb_payment_transaction_id, kb_payment_method_id, amount, currency, properties, context)
@@ -84,6 +86,7 @@ module Killbill #:nodoc:
         options = {}
 
         add_required_options(kb_account_id, properties, options, context)
+        add_reconciliation_id(properties, options)
 
         properties = merge_properties(properties, options)
         super(kb_account_id, kb_payment_id, kb_payment_transaction_id, kb_payment_method_id, amount, currency, properties, context)
@@ -387,6 +390,11 @@ module Killbill #:nodoc:
           merchant_descriptor_hash[:card_type] = ::Killbill::Plugin::ActiveMerchant::Utils.normalized(properties_to_hash(properties), :cc_type)
         end
         options[:merchant_descriptor] = merchant_descriptor_hash
+      end
+
+      def add_reconciliation_id(properties, options)
+        reconciliation_id = find_value_from_properties(properties, 'reconciliation_id')
+        options[:reconciliation_id] = reconciliation_id if reconciliation_id.present?
       end
 
       def get_report_api(options, context)

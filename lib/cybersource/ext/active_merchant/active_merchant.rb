@@ -38,6 +38,7 @@ module ActiveMerchant
           xml.tag! 'ccAuthService', {'run' => 'true'} do
             # Let CyberSource figure it out otherwise (internet is the default unless tokens are used)
             xml.tag!("commerceIndicator", options[:commerce_indicator]) unless options[:commerce_indicator].blank?
+            add_reconciliation_id(xml, options)
           end
         end
       end
@@ -55,6 +56,7 @@ module ActiveMerchant
               xml.tag!("cavv", payment_method.payment_cryptogram)
               xml.tag!("commerceIndicator", options[:commerce_indicator] || (is_android_pay(payment_method, options) ? 'internet' : 'vbv'))
               xml.tag!("xid", payment_method.payment_cryptogram)
+              add_reconciliation_id(xml, options)
             end
           when :master
             xml.tag! 'ucaf' do
@@ -63,6 +65,7 @@ module ActiveMerchant
             end
             xml.tag! 'ccAuthService', {'run' => 'true'} do
               xml.tag!("commerceIndicator", options[:commerce_indicator] || "spa")
+              add_reconciliation_id(xml, options)
             end
           when :american_express
             cryptogram = Base64.decode64(payment_method.payment_cryptogram)
@@ -72,7 +75,46 @@ module ActiveMerchant
               if cryptogram.size == 40
                 xml.tag!("xid", Base64.encode64(cryptogram[20...40]))
               end
+              add_reconciliation_id(xml, options)
             end
+        end
+      end
+
+      def build_capture_request(money, authorization, options)
+        order_id, request_id, request_token = authorization.split(";")
+        options[:order_id] = order_id
+
+        xml = Builder::XmlMarkup.new :indent => 2
+        add_purchase_data(xml, money, true, options)
+        add_capture_service(xml, request_id, request_token, options)
+        add_business_rules_data(xml, authorization, options)
+        xml.target!
+      end
+
+      def add_capture_service(xml, request_id, request_token, options = {})
+        xml.tag! 'ccCaptureService', {'run' => 'true'} do
+          xml.tag! 'authRequestID', request_id
+          xml.tag! 'authRequestToken', request_token
+          add_reconciliation_id(xml, options)
+        end
+      end
+
+      def build_refund_request(money, identification, options)
+        order_id, request_id, request_token = identification.split(";")
+        options[:order_id] = order_id
+
+        xml = Builder::XmlMarkup.new :indent => 2
+        add_purchase_data(xml, money, true, options)
+        add_credit_service(xml, request_id, request_token, options)
+
+        xml.target!
+      end
+
+      def add_credit_service(xml, request_id = nil, request_token = nil, options = {})
+        xml.tag! 'ccCreditService', {'run' => 'true'} do
+          xml.tag! 'captureRequestID', request_id if request_id
+          xml.tag! 'captureRequestToken', request_token if request_token
+          add_reconciliation_id(xml, options)
         end
       end
 
@@ -132,6 +174,7 @@ module ActiveMerchant
             response.delete(k)
           end
         end
+        response[:reconciliation_id] = options[:reconciliation_id] if options[:reconciliation_id].present?
 
         success = response[:decision] == 'ACCEPT'
         authorization = success ? [options[:order_id], response[:requestID], response[:requestToken]].compact.join(';') : nil
@@ -201,6 +244,11 @@ module ActiveMerchant
             end
           end
         end
+      end
+
+      def add_reconciliation_id(xml, options)
+        return unless options[:reconciliation_id].present?
+        xml.tag! 'reconciliationID', options[:reconciliation_id]
       end
 
       def parse_element(reply, node)

@@ -300,6 +300,68 @@ describe Killbill::Cybersource::PaymentPlugin do
     end
   end
 
+  describe 'reconciliation id' do
+    context 'without reconciliation_id' do
+      before do
+        add_card_property(properties)
+
+        ::ActiveMerchant::Billing::CyberSourceGateway.any_instance.stub(:ssl_post) do |host, request_body|
+          request_body.should_not match("<reconciliationID>")
+          successful_purchase_response
+        end
+      end
+
+      context 'with nil reconciliation id' do
+        let(:properties){ [] }
+        it 'should not provide reconciliation id to gateway' do
+          authorize(:PROCESSED, properties)
+        end
+      end
+
+      context 'with blank reconciliation_id' do
+        let(:reconciliation_id){ "" }
+        let(:properties){ [build_property('reconciliation_id', reconciliation_id)] }
+        it 'should not provide reconciliation id to gateway' do
+          authorize(:PROCESSED, properties)
+        end
+      end
+    end
+
+    context 'while reconciliation id provided' do
+      let(:reconciliation_id){ "ABCDEFG" }
+      let(:properties){ [build_property('reconciliation_id', reconciliation_id)] }
+      before{ add_card_property(properties) }
+
+      context 'for successful transactions' do
+        before do
+          ::ActiveMerchant::Billing::CyberSourceGateway.any_instance.stub(:ssl_post) do |host, request_body|
+            request_body.should match("<reconciliationID>#{reconciliation_id}</reconciliationID>")
+            successful_purchase_response
+          end
+        end
+
+        it 'should provide reconciliation id to gateway' do
+          auth_responses = create_transaction(:visa, :authorize, nil, :PROCESSED, properties)
+          capture_responses = create_transaction(:visa, :capture, auth_responses, :PROCESSED, properties)
+          create_transaction(:visa, :refund, capture_responses, :PROCESSED, properties)
+        end
+      end
+
+      context 'failed transaction' do
+        before do
+          ::ActiveMerchant::Billing::CyberSourceGateway.any_instance.stub(:ssl_post) do |host, request_body|
+            request_body.should match("<reconciliationID>#{reconciliation_id}</reconciliationID>")
+            unsuccessful_authorization_response
+          end
+        end
+
+        it 'will also record the reconciliation_id' do
+          create_transaction(:visa, :authorize, nil, :ERROR, properties, {:params_reconciliation_id => reconciliation_id})
+        end
+      end
+    end
+  end
+
   private
 
   def with_transaction(kb_payment_id, transaction_type, created_at, context)
