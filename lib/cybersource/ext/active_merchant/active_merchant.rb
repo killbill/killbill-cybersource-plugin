@@ -4,6 +4,7 @@ module ActiveMerchant
     KB_PLUGIN_VERSION = Gem.loaded_specs['killbill-cybersource'].version.version rescue nil
 
     class CyberSourceGateway
+      # The payload definitions: https://ics2wstest.ic3.com/commerce/1.x/transactionProcessor/CyberSourceTransaction_1.109.xsd
 
       def self.x_request_id
         # See KillbillMDCInsertingServletFilter
@@ -94,8 +95,8 @@ module ActiveMerchant
       def add_capture_service(xml, request_id, request_token, options = {})
         xml.tag! 'ccCaptureService', {'run' => 'true'} do
           xml.tag! 'authRequestID', request_id
+          add_reconciliation_id(xml, options) # the order is important
           xml.tag! 'authRequestToken', request_token
-          add_reconciliation_id(xml, options)
         end
       end
 
@@ -113,8 +114,8 @@ module ActiveMerchant
       def add_credit_service(xml, request_id = nil, request_token = nil, options = {})
         xml.tag! 'ccCreditService', {'run' => 'true'} do
           xml.tag! 'captureRequestID', request_id if request_id
-          xml.tag! 'captureRequestToken', request_token if request_token
           add_reconciliation_id(xml, options)
+          xml.tag! 'captureRequestToken', request_token if request_token
         end
       end
 
