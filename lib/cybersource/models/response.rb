@@ -37,7 +37,7 @@ module Killbill #:nodoc:
             :params_cv_code => extract(response, 'cvCode'),
             :params_authorized_date_time => extract(response, 'authorizedDateTime'),
             :params_processor_response => extract(response, 'processorResponse'),
-            :params_reconciliation_id => extract(response, 'reconciliationID') || extract(response, 'reconciliation_id'),
+            :params_reconciliation_id => extract(response, 'reconciliationID') || extract(response, 'reconciliation_id'), # when failure, use passed-in reconciliation id
             :params_subscription_id => extract(response, 'subscriptionID'),
         }
       end
