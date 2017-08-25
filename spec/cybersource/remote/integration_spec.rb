@@ -776,6 +776,52 @@ describe Killbill::Cybersource::PaymentPlugin do
     end
   end
 
+  describe 'with reconciliation id' do
+    before do
+      @properties << build_property('email', 'foo@bar.com')
+      @properties << build_property('cc_number', '4111111111111111')
+      @properties << build_property('reconciliation_id', '1F16A6C017F12C15')
+    end
+    let(:payment_id){ SecureRandom.uuid }
+
+    context 'successful transactions' do
+      it 'should send passedin reconciliation id to Cybersource' do
+        @pm = create_payment_method(::Killbill::Cybersource::CybersourcePaymentMethod, nil, @call_context.tenant_id, @properties)
+
+        payment_response = @plugin.authorize_payment(@pm.kb_account_id, payment_id, SecureRandom.uuid, @pm.kb_payment_method_id, @amount, @currency, @properties, @call_context)
+        check_response(payment_response, @amount, :AUTHORIZE, :PROCESSED, 'Successful transaction', '100')
+        gw_response = Killbill::Cybersource::CybersourceResponse.last
+        gw_response.params_reconciliation_id.should == '1F16A6C017F12C15'
+
+        # Try a capture
+        @properties.pop
+        @properties << build_property('reconciliation_id', '1F16A6C017F12C16')
+        payment_response = @plugin.capture_payment(@pm.kb_account_id, payment_id, SecureRandom.uuid, @pm.kb_payment_method_id, @amount, @currency, @properties, @call_context)
+        check_response(payment_response, @amount, :CAPTURE, :PROCESSED, 'Successful transaction', '100')
+        gw_response = Killbill::Cybersource::CybersourceResponse.last
+        gw_response.params_reconciliation_id.should == '1F16A6C017F12C16'
+
+        # Try a refund
+        @properties.pop
+        @properties << build_property('reconciliation_id', '1F16A6C017F12C17')
+        refund_response = @plugin.refund_payment(@pm.kb_account_id, payment_id, SecureRandom.uuid, @pm.kb_payment_method_id, @amount, @currency, @properties, @call_context)
+        check_response(refund_response, @amount, :REFUND, :PROCESSED, 'Successful transaction', '100')
+        gw_response = Killbill::Cybersource::CybersourceResponse.last
+        gw_response.params_reconciliation_id.should == '1F16A6C017F12C17'
+      end
+    end
+
+    context 'for failed transactions' do
+      it 'should also record the reconciliation id in the resposne' do
+        @pm = create_payment_method(::Killbill::Cybersource::CybersourcePaymentMethod, nil, @call_context.tenant_id, @properties)
+        payment_response = @plugin.authorize_payment(@pm.kb_account_id, payment_id, SecureRandom.uuid, @pm.kb_payment_method_id, 2236, @currency, @properties, @call_context)
+        check_response(payment_response, nil, :AUTHORIZE, :CANCELED, 'General failure', '150')
+        gw_response = Killbill::Cybersource::CybersourceResponse.last
+        gw_response.params_reconciliation_id.should == '1F16A6C017F12C15'
+      end
+    end
+  end
+
   private
 
   def check_response(payment_response, amount, transaction_type, expected_status, expected_error, expected_error_code, expected_processor_response = nil)
