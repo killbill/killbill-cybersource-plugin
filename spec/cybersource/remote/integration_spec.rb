@@ -812,7 +812,7 @@ describe Killbill::Cybersource::PaymentPlugin do
     end
 
     context 'for failed transactions' do
-      it 'should also record the reconciliation id in the resposne' do
+      it 'should also record the reconciliation id in the response' do
         @pm = create_payment_method(::Killbill::Cybersource::CybersourcePaymentMethod, nil, @call_context.tenant_id, @properties)
         payment_response = @plugin.authorize_payment(@pm.kb_account_id, payment_id, SecureRandom.uuid, @pm.kb_payment_method_id, 2236, @currency, @properties, @call_context)
         check_response(payment_response, nil, :AUTHORIZE, :CANCELED, 'General failure', '150')
