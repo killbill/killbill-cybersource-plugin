@@ -1,3 +1,6 @@
+5.2.3
+    Add optional reconciliation id to auth, capture and refund calls
+
 5.2.2
     Update killbill gem to 8.3.2
 

@@ -1,7 +1,7 @@
 PATH
   remote: .
   specs:
-    killbill-cybersource (5.2.2)
+    killbill-cybersource (5.2.3)
       actionpack (~> 4.1.0)
       actionview (~> 4.1.0)
       activemerchant (~> 1.48.0)
