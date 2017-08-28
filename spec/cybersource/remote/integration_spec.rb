@@ -785,7 +785,7 @@ describe Killbill::Cybersource::PaymentPlugin do
     let(:payment_id){ SecureRandom.uuid }
 
     context 'successful transactions' do
-      it 'should send passedin reconciliation id to Cybersource' do
+      it 'should send passedin reconciliation id to Cybersource', :ci_skip => true do
         @pm = create_payment_method(::Killbill::Cybersource::CybersourcePaymentMethod, nil, @call_context.tenant_id, @properties)
 
         payment_response = @plugin.authorize_payment(@pm.kb_account_id, payment_id, SecureRandom.uuid, @pm.kb_payment_method_id, @amount, @currency, @properties, @call_context)
