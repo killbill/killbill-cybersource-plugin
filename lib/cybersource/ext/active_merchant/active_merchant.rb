@@ -78,6 +78,12 @@ module ActiveMerchant
               end
               add_reconciliation_id(xml, options)
             end
+          when :discover
+            xml.tag! 'ccAuthService', {'run' => 'true'} do
+              xml.tag!("cavv", payment_method.payment_cryptogram)
+              xml.tag!("commerceIndicator", options[:commerce_indicator] || "dipb")
+              add_reconciliation_id(xml, options)
+            end
         end
       end
 
@@ -125,6 +131,8 @@ module ActiveMerchant
       def add_payment_solution(xml, payment_method, options)
         if is_android_pay(payment_method, options)
           xml.tag!('paymentSolution', '006')
+        else
+          xml.tag!('paymentSolution', '001')
         end
       end
 
