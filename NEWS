@@ -1,3 +1,7 @@
+5.2.5
+    Reduce payment cancelation threshold from one day to one hour
+    Update killbill gem to 8.3.3
+
 5.2.4
     Add ApplePay support for Discover
 
