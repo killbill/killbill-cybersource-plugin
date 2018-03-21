@@ -3,7 +3,7 @@ module Killbill #:nodoc:
     class PaymentPlugin < ::Killbill::Plugin::ActiveMerchant::PaymentPlugin
 
       FIVE_MINUTES_AGO = (1 * 300)
-      ONE_DAY_AGO = (1 * 86400)
+      ONE_HOUR_AGO = (1 * 3600)
       SIXTY_DAYS_AGO = (60 * 86400)
 
       def initialize
@@ -174,7 +174,7 @@ module Killbill #:nodoc:
           # Report API not configured, connection problem or skip_gw=true
           next if report.nil?
 
-          threshold = (Killbill::Plugin::ActiveMerchant::Utils.normalized(options, :cancel_threshold) || ONE_DAY_AGO).to_i
+          threshold = (Killbill::Plugin::ActiveMerchant::Utils.normalized(options, :cancel_threshold) || ONE_HOUR_AGO).to_i
           should_cancel_payment = delay_since_transaction >= threshold
           if (report.empty? || report_not_match(report, transaction_info_plugin.first_payment_reference_id, existing_request_ids)) && !should_cancel_payment
             # We'll retry later
