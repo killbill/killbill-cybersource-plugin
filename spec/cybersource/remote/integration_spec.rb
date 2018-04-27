@@ -209,77 +209,12 @@ describe Killbill::Cybersource::PaymentPlugin do
     check_response(payment_response, @amount, :CAPTURE, :PROCESSED, 'Successful transaction', '100')
   end
 
-  it 'should be able to pay with Android Pay' do
-    properties = build_pm_properties(nil,
-                                     {
-                                         :cc_number => 4895370012003478,
-                                         :cc_type => 'visa',
-                                         :payment_cryptogram => 'AgAAAAAABk4DWZ4C28yUQAAAAAA=',
-                                         :ignore_avs => true,
-                                         :ignore_cvv => true
-                                     })
-    properties << build_property('source', 'androidpay')
+  it 'should be able to pay with Google Pay' do
+    google_or_android_pay_spec('googlepay')
+  end
 
-    kb_payment = setup_kb_payment
-    payment_response = @plugin.purchase_payment(@pm.kb_account_id, kb_payment.id, kb_payment.transactions[0].id, @pm.kb_payment_method_id, @amount, @currency, properties, @call_context)
-    check_response(payment_response, @amount, :PURCHASE, :PROCESSED, 'Successful transaction', '100')
-
-    properties = build_pm_properties(nil,
-                                     {
-                                         :cc_number => 5555555555554444,
-                                         :cc_type => 'master',
-                                         :payment_cryptogram => 'EHuWW9PiBkWvqE5juRwDzAUFBAk=',
-                                         :ignore_avs => true,
-                                         :ignore_cvv => true
-                                     })
-    properties << build_property('source', 'androidpay')
-
-    kb_payment = setup_kb_payment
-    payment_response = @plugin.purchase_payment(@pm.kb_account_id, kb_payment.id, kb_payment.transactions[0].id, @pm.kb_payment_method_id, @amount, @currency, properties, @call_context)
-    check_response(payment_response, @amount, :PURCHASE, :PROCESSED, 'Successful transaction', '100')
-
-    properties = build_pm_properties(nil,
-                                     {
-                                         :cc_number => 378282246310005,
-                                         :cc_type => 'american_express',
-                                         :payment_cryptogram => 'AAAAAAAAAAAAAAAAAAAAAAAAAAABBBBBBBBBBBBBBBBBBBBBBBBBBB==',
-                                         :ignore_avs => true,
-                                         :ignore_cvv => true
-                                     })
-    properties << build_property('source', 'androidpay')
-
-    kb_payment = setup_kb_payment
-    payment_response = @plugin.purchase_payment(@pm.kb_account_id, kb_payment.id, kb_payment.transactions[0].id, @pm.kb_payment_method_id, @amount, @currency, properties, @call_context)
-    check_response(payment_response, @amount, :PURCHASE, :PROCESSED, 'Successful transaction', '100')
-
-    properties = build_pm_properties(nil,
-                                     {
-                                         :cc_number => 378282246310005,
-                                         :cc_type => 'american_express',
-                                         :payment_cryptogram => 'AAAAAAAAAAAAAAAAAABBBBBBBBB=',
-                                         :ignore_avs => true,
-                                         :ignore_cvv => true
-                                     })
-    properties << build_property('source', 'androidpay')
-
-    kb_payment = setup_kb_payment
-    payment_response = @plugin.purchase_payment(@pm.kb_account_id, kb_payment.id, kb_payment.transactions[0].id, @pm.kb_payment_method_id, @amount, @currency, properties, @call_context)
-    check_response(payment_response, @amount, :PURCHASE, :PROCESSED, 'Successful transaction', '100')
-
-    properties = build_pm_properties(nil,
-                                     {
-                                         :cc_number => 6011111111111117,
-                                         :cc_type => 'discover',
-                                         :payment_cryptogram => 'ABCDEFabcdefABCDEFabcdef0987654321234567',
-                                         :ignore_avs => true,
-                                         :ignore_cvv => true
-                                     })
-    properties << build_property('source', 'androidpay')
-
-    kb_payment = setup_kb_payment
-    @plugin.authorize_payment(@pm.kb_account_id, kb_payment.id, kb_payment.transactions[0].id, @pm.kb_payment_method_id, @amount, @currency, properties, @call_context)
-    payment_response = @plugin.capture_payment(@pm.kb_account_id, kb_payment.id, @kb_payment.transactions[1].id, @pm.kb_payment_method_id, @amount, @currency, @properties, @call_context)
-    check_response(payment_response, @amount, :CAPTURE, :PROCESSED, 'Successful transaction', '100')
+  it 'should be able to pay with Google Pay' do
+    google_or_android_pay_spec('androidpay')
   end
 
   shared_examples 'fix_undefined_payments' do
@@ -851,6 +786,79 @@ describe Killbill::Cybersource::PaymentPlugin do
   end
 
   private
+
+  def google_or_android_pay_spec(source)
+    properties = build_pm_properties(nil,
+                                     {
+                                         :cc_number => 4895370012003478,
+                                         :cc_type => 'visa',
+                                         :payment_cryptogram => 'AgAAAAAABk4DWZ4C28yUQAAAAAA=',
+                                         :ignore_avs => true,
+                                         :ignore_cvv => true
+                                     })
+    properties << build_property('source', source)
+
+    kb_payment = setup_kb_payment
+    payment_response = @plugin.purchase_payment(@pm.kb_account_id, kb_payment.id, kb_payment.transactions[0].id, @pm.kb_payment_method_id, @amount, @currency, properties, @call_context)
+    check_response(payment_response, @amount, :PURCHASE, :PROCESSED, 'Successful transaction', '100')
+
+    properties = build_pm_properties(nil,
+                                     {
+                                         :cc_number => 5555555555554444,
+                                         :cc_type => 'master',
+                                         :payment_cryptogram => 'EHuWW9PiBkWvqE5juRwDzAUFBAk=',
+                                         :ignore_avs => true,
+                                         :ignore_cvv => true
+                                     })
+    properties << build_property('source', source)
+
+    kb_payment = setup_kb_payment
+    payment_response = @plugin.purchase_payment(@pm.kb_account_id, kb_payment.id, kb_payment.transactions[0].id, @pm.kb_payment_method_id, @amount, @currency, properties, @call_context)
+    check_response(payment_response, @amount, :PURCHASE, :PROCESSED, 'Successful transaction', '100')
+
+    properties = build_pm_properties(nil,
+                                     {
+                                         :cc_number => 378282246310005,
+                                         :cc_type => 'american_express',
+                                         :payment_cryptogram => 'AAAAAAAAAAAAAAAAAAAAAAAAAAABBBBBBBBBBBBBBBBBBBBBBBBBBB==',
+                                         :ignore_avs => true,
+                                         :ignore_cvv => true
+                                     })
+    properties << build_property('source', source)
+
+    kb_payment = setup_kb_payment
+    payment_response = @plugin.purchase_payment(@pm.kb_account_id, kb_payment.id, kb_payment.transactions[0].id, @pm.kb_payment_method_id, @amount, @currency, properties, @call_context)
+    check_response(payment_response, @amount, :PURCHASE, :PROCESSED, 'Successful transaction', '100')
+
+    properties = build_pm_properties(nil,
+                                     {
+                                         :cc_number => 378282246310005,
+                                         :cc_type => 'american_express',
+                                         :payment_cryptogram => 'AAAAAAAAAAAAAAAAAABBBBBBBBB=',
+                                         :ignore_avs => true,
+                                         :ignore_cvv => true
+                                     })
+    properties << build_property('source', source)
+
+    kb_payment = setup_kb_payment
+    payment_response = @plugin.purchase_payment(@pm.kb_account_id, kb_payment.id, kb_payment.transactions[0].id, @pm.kb_payment_method_id, @amount, @currency, properties, @call_context)
+    check_response(payment_response, @amount, :PURCHASE, :PROCESSED, 'Successful transaction', '100')
+
+    properties = build_pm_properties(nil,
+                                     {
+                                         :cc_number => 6011111111111117,
+                                         :cc_type => 'discover',
+                                         :payment_cryptogram => 'ABCDEFabcdefABCDEFabcdef0987654321234567',
+                                         :ignore_avs => true,
+                                         :ignore_cvv => true
+                                     })
+    properties << build_property('source', source)
+
+    kb_payment = setup_kb_payment
+    @plugin.authorize_payment(@pm.kb_account_id, kb_payment.id, kb_payment.transactions[0].id, @pm.kb_payment_method_id, @amount, @currency, properties, @call_context)
+    payment_response = @plugin.capture_payment(@pm.kb_account_id, kb_payment.id, @kb_payment.transactions[1].id, @pm.kb_payment_method_id, @amount, @currency, @properties, @call_context)
+    check_response(payment_response, @amount, :CAPTURE, :PROCESSED, 'Successful transaction', '100')
+  end
 
   def check_response(payment_response, amount, transaction_type, expected_status, expected_error, expected_error_code, expected_processor_response = nil)
     payment_response.amount.should == amount
