@@ -213,7 +213,7 @@ describe Killbill::Cybersource::PaymentPlugin do
     google_or_android_pay_spec('googlepay')
   end
 
-  it 'should be able to pay with Google Pay' do
+  it 'should be able to pay with Android Pay' do
     google_or_android_pay_spec('androidpay')
   end
 
