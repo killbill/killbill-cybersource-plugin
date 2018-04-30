@@ -55,7 +55,7 @@ module ActiveMerchant
           when :visa
             xml.tag! 'ccAuthService', {'run' => 'true'} do
               xml.tag!("cavv", payment_method.payment_cryptogram)
-              xml.tag!("commerceIndicator", options[:commerce_indicator] || (is_android_pay(payment_method, options) ? 'internet' : 'vbv'))
+              xml.tag!("commerceIndicator", options[:commerce_indicator] || (is_android_pay(payment_method, options) || is_google_pay(payment_method, options)) ? 'internet' : 'vbv')
               xml.tag!("xid", payment_method.payment_cryptogram)
               add_reconciliation_id(xml, options)
             end
@@ -131,6 +131,8 @@ module ActiveMerchant
       def add_payment_solution(xml, payment_method, options)
         if is_android_pay(payment_method, options)
           xml.tag!('paymentSolution', '006')
+        elsif is_google_pay(payment_method, options)
+          xml.tag!('paymentSolution', '012')
         else
           xml.tag!('paymentSolution', '001')
         end
@@ -138,6 +140,10 @@ module ActiveMerchant
 
       def is_android_pay(payment_method, options)
         (payment_method.respond_to?(:source) && payment_method.source == :android_pay) || options[:source] == 'androidpay'
+      end
+
+      def is_google_pay(payment_method, options)
+        (payment_method.respond_to?(:source) && payment_method.source == :google_pay) || options[:source] == 'googlepay'
       end
 
       # Changes:
