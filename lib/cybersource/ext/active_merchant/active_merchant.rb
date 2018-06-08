@@ -192,7 +192,7 @@ module ActiveMerchant
         response[:reconciliation_id] = options[:reconciliation_id] if options[:reconciliation_id].present?
 
         success = response[:decision] == 'ACCEPT'
-        authorization = success ? [options[:order_id], response[:requestID], response[:requestToken]].compact.join(';') : nil
+        authorization = success ? [options[:order_id], response['subscriptionID'] || response[:requestID], response[:requestToken]].compact.join(';') : nil
 
         message = nil
         if response[:reasonCode].blank? && (response[:faultcode] == 'wsse:FailedCheck' || response[:faultcode] == 'wsse:InvalidSecurity' || response[:faultcode] == 'soap:Client' || response[:faultcode] == 'c:ServerError')
